@@ -1,4 +1,6 @@
+
 services:
+
   backend:
     build:
       context: ./apps/backend
@@ -32,31 +34,38 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+    # ============================================================
+    # KEPT: Updated upstream / latest main
+    # ============================================================
     ports:
-<<<<<<< Updated upstream
-        - "127.0.0.1:8000:8000"
-        - "127.0.0.1:9019:9019"
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:9019:9019"
 
     command: sh -c "pip install aiokafka==0.10.0 && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
-    volumes:
-        - ./services/ai-gateway/models:/app/models
-        - ./services/ai-gateway/app:/app/app
-        - ./services/ai-gateway/scripts:/app/scripts
-        - ./config:/config
-        - ./config:/app/config
-        - ./assets:/app/assets
-
-=======
-      - "8002:8000"
-      - "9019:9019"
     volumes:
       - ./services/ai-gateway/models:/app/models
       - ./services/ai-gateway/app:/app/app
       - ./services/ai-gateway/scripts:/app/scripts
       - ./config:/config
+      - ./config:/app/config
       - ./assets:/app/assets
->>>>>>> Stashed changes
+
+    # ============================================================
+    # COMMENTED OUT: FrontendCheck / stashed local version
+    # ============================================================
+    # ports:
+    #   - "8002:8000"
+    #   - "9019:9019"
+    #
+    # volumes:
+    #   - ./services/ai-gateway/models:/app/models
+    #   - ./services/ai-gateway/app:/app/app
+    #   - ./services/ai-gateway/scripts:/app/scripts
+    #   - ./config:/config
+    #   - ./assets:/app/assets
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -154,3 +163,4 @@ volumes:
   postgres_data:
   redis_data:
   kafka_data:
+

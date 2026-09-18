@@ -1,18 +1,30 @@
 services:
+  backend:
+    build:
+      context: ./apps/backend
+    container_name: talkflow-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - DATABASE_URL=postgresql+asyncpg://talkflow:admin@postgres:5432/talkflow
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   ai-gateway:
     build:
       context: ./services/ai-gateway
-
     container_name: talkflow-ai-gateway
-
     restart: unless-stopped
-
     env_file:
       - .env
-
     environment:
-      APP_ENV: development
-
+      - APP_ENV=development
     deploy:
       resources:
         reservations:
@@ -20,8 +32,8 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
     ports:
+<<<<<<< Updated upstream
         - "127.0.0.1:8000:8000"
         - "127.0.0.1:9019:9019"
 
@@ -35,10 +47,19 @@ services:
         - ./config:/app/config
         - ./assets:/app/assets
 
+=======
+      - "8002:8000"
+      - "9019:9019"
+    volumes:
+      - ./services/ai-gateway/models:/app/models
+      - ./services/ai-gateway/app:/app/app
+      - ./services/ai-gateway/scripts:/app/scripts
+      - ./config:/config
+      - ./assets:/app/assets
+>>>>>>> Stashed changes
     depends_on:
       postgres:
         condition: service_healthy
-
       redis:
         condition: service_started
 

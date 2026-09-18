@@ -1,0 +1,1 @@
+# VICIdial client placeholder

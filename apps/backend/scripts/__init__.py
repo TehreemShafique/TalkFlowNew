@@ -1,0 +1,1 @@
+"""Backend operator / simulator scripts (STEP 16 fake gateway)."""

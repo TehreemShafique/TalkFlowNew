@@ -1,0 +1,294 @@
+{
+  "call_id": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+  "campaign_id": "11111111-2222-3333-4444-555555555555",
+  "channel_id": "1789743600.8a1b2c",
+  "lead_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "reference": "TF-SIM-0001",
+  "events": [
+    {
+      "topic": "talkflow.call.opened.v1",
+      "event": {
+        "agentAlias": "Adriana",
+        "attemptNumber": 1,
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "callerIdUsed": "855-555-4586",
+        "callerNumber": "202-555-0134",
+        "callerState": "DC",
+        "campaignId": "11111111-2222-3333-4444-555555555555",
+        "channelId": "1789743600.8a1b2c",
+        "didUsed": "855-555-4586",
+        "direction": "outbound",
+        "eventTs": "2026-09-18T15:00:01+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-001",
+        "leadId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "reference": "TF-SIM-0001",
+        "ruleSetVersionId": "ca134c8b-0ed4-5003-b4ef-97189b059df7",
+        "scriptVersionId": "626abd52-8196-54db-a39d-c8013caedef7"
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:02+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-002",
+        "nodeId": "n_greeting",
+        "nodeName": "Greeting",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 2000,
+        "eventTs": "2026-09-18T15:00:03+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-003",
+        "isFinal": true,
+        "nodeId": "n_greeting",
+        "nodeName": "Greeting",
+        "speaker": "bot",
+        "startMs": 0,
+        "text": "Hi, how are you doing today? This is Adriana."
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:04+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-004",
+        "nodeId": "n_pitch",
+        "nodeName": "Pitch",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 4500,
+        "eventTs": "2026-09-18T15:00:05+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-005",
+        "isFinal": true,
+        "nodeId": "n_pitch",
+        "nodeName": "Pitch",
+        "speaker": "bot",
+        "startMs": 2500,
+        "text": "I'm calling because your health and groceries benefit have not been claimed yet, and they're about to close out."
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:06+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-006",
+        "nodeId": "n_part_ab",
+        "nodeName": "Part A & B",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 7000,
+        "eventTs": "2026-09-18T15:00:07+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-007",
+        "isFinal": true,
+        "nodeId": "n_part_ab",
+        "nodeName": "Part A & B",
+        "speaker": "bot",
+        "startMs": 5000,
+        "text": "So do you currently have Medicare Part A and B?"
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:08+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-008",
+        "nodeId": "n_part_ab",
+        "nodeName": "Part A & B",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 9500,
+        "eventTs": "2026-09-18T15:00:09+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-009",
+        "isFinal": true,
+        "nodeId": "n_part_ab",
+        "nodeName": "Part A & B",
+        "speaker": "user",
+        "startMs": 7500,
+        "text": "yes I do"
+      }
+    },
+    {
+      "topic": "talkflow.call.field.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "eventTs": "2026-09-18T15:00:10+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-010",
+        "field": "medicare_part_ab",
+        "label": "Has Part A & B",
+        "nodeId": "n_part_ab",
+        "value": true,
+        "valueType": "boolean"
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:11+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-011",
+        "nodeId": "n_age_range",
+        "nodeName": "Age Range",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 12000,
+        "eventTs": "2026-09-18T15:00:12+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-012",
+        "isFinal": true,
+        "nodeId": "n_age_range",
+        "nodeName": "Age Range",
+        "speaker": "bot",
+        "startMs": 10000,
+        "text": "And are you between the age of 60 to 87?"
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:13+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-013",
+        "nodeId": "n_age_range",
+        "nodeName": "Age Range",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 14500,
+        "eventTs": "2026-09-18T15:00:14+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-014",
+        "isFinal": true,
+        "nodeId": "n_age_range",
+        "nodeName": "Age Range",
+        "speaker": "user",
+        "startMs": 12500,
+        "text": "yeah I'm 71"
+      }
+    },
+    {
+      "topic": "talkflow.call.field.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "eventTs": "2026-09-18T15:00:15+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-015",
+        "field": "age_in_range",
+        "label": "Age in range",
+        "nodeId": "n_age_range",
+        "value": true,
+        "valueType": "boolean"
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:16+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-016",
+        "nodeId": "n_confirm",
+        "nodeName": "Confirm",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 17000,
+        "eventTs": "2026-09-18T15:00:17+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-017",
+        "isFinal": true,
+        "nodeId": "n_confirm",
+        "nodeName": "Confirm",
+        "speaker": "bot",
+        "startMs": 15000,
+        "text": "Alright, great."
+      }
+    },
+    {
+      "topic": "talkflow.call.event.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "eventTs": "2026-09-18T15:00:18+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-018",
+        "nodeId": "n_transfer",
+        "nodeName": "Transfer",
+        "type": "node_entered"
+      }
+    },
+    {
+      "topic": "talkflow.call.transcript.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "confidence": 0.95,
+        "endMs": 19500,
+        "eventTs": "2026-09-18T15:00:19+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-019",
+        "isFinal": true,
+        "nodeId": "n_transfer",
+        "nodeName": "Transfer",
+        "speaker": "bot",
+        "startMs": 17500,
+        "text": "Now let me bring the senior on the line. Please stay on the line."
+      }
+    },
+    {
+      "topic": "talkflow.call.closed.v1",
+      "event": {
+        "callId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d",
+        "durationSeconds": 20,
+        "eventTs": "2026-09-18T15:00:20+00:00",
+        "externalEventId": "8a1b2c3d-4e5f-4a6b-9c0d-1e2f3a4b5c6d-020",
+        "performance": {
+          "decideMs": 9,
+          "sttMs": 240,
+          "totalTurnMs": 690,
+          "ttsTtfaMs": 410,
+          "turnCount": 8,
+          "vadMs": 18
+        },
+        "proposedDisposition": "qualified_transferred",
+        "status": "completed",
+        "talkTimeSeconds": 16
+      }
+    }
+  ]
+}

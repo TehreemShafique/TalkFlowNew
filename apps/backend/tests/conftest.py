@@ -5,6 +5,7 @@ dedicated ``talkflow_test`` database, with ``get_db`` overridden to the test
 engine.  RBAC + recording data is seeded per test (TRUNCATE + reseed) so the
 suite is fully self-contained and does not touch the live ``talkflow`` DB.
 """
+
 from __future__ import annotations
 
 import os
@@ -14,7 +15,9 @@ from pathlib import Path
 
 # -- Environment MUST be configured before any `app.*` import ----------------
 _STORAGE_ROOT = Path(tempfile.mkdtemp(prefix="tf_recordings_test_"))
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://talkflow:admin@localhost:5432/talkflow_test"
+os.environ["DATABASE_URL"] = (
+    "postgresql+asyncpg://talkflow:admin@localhost:5432/talkflow_test"
+)
 os.environ["REDIS_URL"] = "redis://localhost:6379/9"
 os.environ["STORAGE_LOCAL_ROOT"] = str(_STORAGE_ROOT)
 os.environ["STORAGE_PUBLIC_BASE_URL"] = "http://testserver"
@@ -36,9 +39,6 @@ from app.packages.contracts.enums import RecordingStatus, UserStatus
 from app.packages.db.base import Base
 from app.packages.db.models import (
     CallRecording,
-    Script,
-    ScriptActivation,
-    ScriptVersion,
     User,
     _shared,
     call_transcripts_table,
@@ -57,7 +57,9 @@ VIEWER_EMAIL = "qa-test-viewer@phonova.io"
 # for create_all / drop_all.  Test-process only; the app is unaffected.
 for _shared_table in list(_shared.tables.values()):
     if _shared_table.name not in Base.metadata.tables:
-        Base.metadata._add_table(_shared_table.name, _shared_table.schema, _shared_table)
+        Base.metadata._add_table(
+            _shared_table.name, _shared_table.schema, _shared_table
+        )
 
 _TRUNCATE = text(
     "TRUNCATE TABLE outbox, audit_log, qa_reviews, call_transcripts, call_recordings, "

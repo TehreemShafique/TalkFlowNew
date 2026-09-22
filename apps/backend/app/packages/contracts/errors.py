@@ -6,6 +6,7 @@ exception hierarchy, one FastAPI handler, one error envelope
 (``contracts.base.ErrorBody``) guarantee consistent wire errors (Rule R2 /
 blueprint section 10).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -47,9 +48,13 @@ def all_error_codes() -> set[str]:
 def register_core_errors() -> None:
     """Register cross-cutting codes the control plane always needs."""
     register_error("auth.not_authenticated", 401, "Authentication is required.")
-    register_error("auth.permission_denied", 403, "You lack permission for this action.")
+    register_error(
+        "auth.permission_denied", 403, "You lack permission for this action."
+    )
     register_error("validation.invalid_input", 422, "The request payload is invalid.")
-    register_error("resource.conflict", 409, "The request conflicts with current state.")
+    register_error(
+        "resource.conflict", 409, "The request conflicts with current state."
+    )
 
 
 class TalkFlowError(Exception):

@@ -6,13 +6,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, func, insert, select, update
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modules.scripts.schemas import ScriptListQuery
 from app.packages.contracts.enums import ScriptStatus
-from app.packages.db.models import Campaign, Script, ScriptActivation, ScriptVersion
+from app.packages.db.models import Campaign, Script, ScriptVersion
 
 
 def _sort_column(sort_key: str | None):
@@ -28,7 +28,7 @@ def _sort_column(sort_key: str | None):
 async def list_scripts(
     session: AsyncSession,
     query: ScriptListQuery,
-    constraints: dict[str, Any],
+    constraints: Any = None,
 ) -> tuple[list[Script], int]:
     """List scripts with filtering, searching, sorting and pagination."""
     _ = constraints
@@ -37,15 +37,15 @@ async def list_scripts(
         conditions.append(Script.status == query.status.value)
     if query.search and query.search.strip():
         term = f"%{query.search.strip()}%"
-        conditions.append(
-            (Script.name.ilike(term)) | (Script.description.ilike(term))
-        )
+        conditions.append((Script.name.ilike(term)) | (Script.description.ilike(term)))
 
     count_stmt = select(func.count(Script.id)).where(and_(*conditions))
     total = (await session.execute(count_stmt)).scalar() or 0
 
     sort_col = _sort_column(query.sort)
-    order_clause = sort_col.asc() if (query.order or "").lower() == "asc" else sort_col.desc()
+    order_clause = (
+        sort_col.asc() if (query.order or "").lower() == "asc" else sort_col.desc()
+    )
 
     offset = (query.page - 1) * query.page_size
     stmt = (
@@ -63,7 +63,11 @@ async def list_scripts(
 
 async def get_script(session: AsyncSession, script_id: uuid.UUID) -> Script | None:
     """Fetch script by ID with versions loaded."""
-    stmt = select(Script).options(selectinload(Script.versions)).where(Script.id == script_id)
+    stmt = (
+        select(Script)
+        .options(selectinload(Script.versions))
+        .where(Script.id == script_id)
+    )
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
@@ -202,7 +206,8 @@ async def list_approval_queue(
     )
 
     result = await session.execute(stmt)
-    return list(result.all()), total
+    rows = [(ver, script) for ver, script in result.all()]
+    return rows, total
 
 
 async def get_campaigns_for_script_version(

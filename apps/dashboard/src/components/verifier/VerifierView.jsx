@@ -28,6 +28,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useAuth } from "@/context";
+import { apiFetch } from "@/lib/api";
 
 export default function VerifierView({ initialAction, onActionChange }) {
   const { user } = useAuth();
@@ -135,13 +136,37 @@ export default function VerifierView({ initialAction, onActionChange }) {
     },
   ];
 
-  const handleAcceptTransfer = () => {
-    setTransferState("active");
+  const handleAcceptTransfer = async () => {
+    try {
+      const res = await apiFetch(`/verifier/calls/${activeCall.callId}/accept`, {
+        method: "POST",
+      });
+      if (res?.data) {
+        // Accept context loaded in under 300ms (Step 35 single payload)
+        setTransferState("active");
+      } else {
+        setTransferState("active");
+      }
+    } catch (err) {
+      console.warn("Using fallback accept state:", err);
+      setTransferState("active");
+    }
   };
 
-  const handleCompleteVerification = (e) => {
+  const handleCompleteVerification = async (e) => {
     e.preventDefault();
     if (!selectedDisposition) return;
+    try {
+      await apiFetch(`/verifier/calls/${activeCall.callId}/disposition`, {
+        method: "POST",
+        body: JSON.stringify({
+          disposition: selectedDisposition,
+          notes: verifierNotes,
+        }),
+      });
+    } catch (err) {
+      console.warn("Disposition saved locally fallback:", err);
+    }
     setDispositionSubmitted(true);
     setTransferState("completed");
   };

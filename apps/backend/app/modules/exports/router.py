@@ -34,7 +34,9 @@ router = APIRouter(prefix="/exports", tags=["exports"])
 
 ViewGate = Annotated[UserContext, Depends(require_permissions([PERM_EXPORT_VIEW]))]
 CreateGate = Annotated[UserContext, Depends(require_permissions([PERM_EXPORT_CREATE]))]
-DownloadGate = Annotated[UserContext, Depends(require_permissions([PERM_EXPORT_DOWNLOAD]))]
+DownloadGate = Annotated[
+    UserContext, Depends(require_permissions([PERM_EXPORT_DOWNLOAD]))
+]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 

@@ -9,6 +9,8 @@ row imports, is skipped, or is suppressed - is unit-testable with no DB.
 
 from __future__ import annotations
 
+import base64
+import os
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -45,6 +47,36 @@ REQUIRED_FIELDS: tuple[str, ...] = ("phone",)
 
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+LEAD_STATUS_TRANSITIONS: set[tuple[str, str]] = {
+    ("new", "assigned"),
+    ("new", "queued"),
+    ("new", "suppressed"),
+    ("assigned", "queued"),
+    ("assigned", "in_call"),
+    ("queued", "in_call"),
+    ("queued", "suppressed"),
+    ("in_call", "completed"),
+    ("in_call", "disqualified"),
+    ("in_call", "queued"),
+    ("in_call", "suppressed"),
+    ("completed", "queued"),
+    ("disqualified", "new"),
+    ("suppressed", "new"),
+}
+
+
+def generate_external_key() -> str:
+    """Generate a <=20 char base32 external_key from 12 random bytes (Step 27)."""
+    raw = os.urandom(12)
+    key = base64.b32encode(raw).decode("ascii").rstrip("=").lower()
+    return key[:20]
+
+
+def can_transition_lead_status(frm: str, to: str) -> bool:
+    if frm == to:
+        return True
+    return (frm, to) in LEAD_STATUS_TRANSITIONS
+
 
 @dataclass(frozen=True, slots=True)
 class PreparedRow:
@@ -67,7 +99,9 @@ def missing_required_fields(mapping: dict[str, str]) -> list[str]:
     return [field for field in REQUIRED_FIELDS if field not in targets]
 
 
-def apply_mapping(row: dict[str, str], mapping: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
+def apply_mapping(
+    row: dict[str, str], mapping: dict[str, str]
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Split a raw CSV row into (system fields, custom fields).
 
     Unmapped source columns and blank values are dropped; only mapped targets
@@ -99,7 +133,9 @@ def parse_date_of_birth(value: str | None) -> tuple[date | None, str | None]:
         return None, "invalid_date_of_birth"
 
 
-def prepare_row(row: dict[str, str], mapping: dict[str, str]) -> tuple[PreparedRow | None, str | None]:
+def prepare_row(
+    row: dict[str, str], mapping: dict[str, str]
+) -> tuple[PreparedRow | None, str | None]:
     """Normalize one mapped row; ``(None, reason)`` when it cannot import.
 
     Enforces the only mandatory column (phone) in E.164 form and rejects rows
@@ -157,7 +193,9 @@ class LeadPolicy:
         Consumers that only read aggregates (e.g. exports) must mask the phone
         unless they hold ``pii.view_full``.
         """
-        return PERM_PII_VIEW_FULL in user.permissions or PERM_LEAD_VIEW in user.permissions
+        return (
+            PERM_PII_VIEW_FULL in user.permissions or PERM_LEAD_VIEW in user.permissions
+        )
 
 
 def resolve_scope_constraints(user: UserContext) -> dict:

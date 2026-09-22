@@ -5,6 +5,7 @@ body.  `AccessScope` hands a stored procedure an explicit set of constraints;
 a NO-defaults rule keeps callers honest at the dependency layer instead of
 silently widening scope.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -44,10 +45,7 @@ class AccessScope:
         )
 
     def has(self, permission: str) -> bool:
-        return (
-            self.permissions is not None
-            and permission in self.permissions
-        )
+        return self.permissions is not None and permission in self.permissions
 
 
 @dataclass(frozen=True, slots=True)

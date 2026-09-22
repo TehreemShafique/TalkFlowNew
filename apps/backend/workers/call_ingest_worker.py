@@ -167,7 +167,9 @@ _PERFORMANCE_COLUMNS: dict[str, str] = {
 }
 
 
-def _snapshot(call: Call, *, node_name: str | None = None, node_id: str | None = None) -> dict[str, Any]:
+def _snapshot(
+    call: Call, *, node_name: str | None = None, node_id: str | None = None
+) -> dict[str, Any]:
     """CamelCase live snapshot for ``cp:call:live:{call_id}``."""
     return {
         "callId": str(call.id),
@@ -203,7 +205,9 @@ class CallIngestHandler:
     redelivered; poison (undecodable) messages are acked and skipped.
     """
 
-    async def handle_topic(self, session: AsyncSession, topic: str, event: dict[str, Any]) -> None:
+    async def handle_topic(
+        self, session: AsyncSession, topic: str, event: dict[str, Any]
+    ) -> None:
         call_id = _opt_uuid(event, "callId")
         external_event_id = _opt_str(event, "externalEventId")
         if call_id is None or not external_event_id:
@@ -238,7 +242,11 @@ class CallIngestHandler:
 
     # ---- opened.v1 --------------------------------------------------------
     async def handle_opened(
-        self, session: AsyncSession, event: dict[str, Any], call_id: uuid.UUID, external_event_id: str
+        self,
+        session: AsyncSession,
+        event: dict[str, Any],
+        call_id: uuid.UUID,
+        external_event_id: str,
     ) -> Call:
         channel_id = _opt_str(event, "channelId")
         if channel_id:
@@ -249,7 +257,12 @@ class CallIngestHandler:
                 # Rule 2: the channel already opened; reuse it.  Quarantine the
                 # caller-supplied id (do not overwrite the ingested row's key).
                 await self._record_event(
-                    session, existing.id, external_event_id, "call.opened", event, _event_ts(event)
+                    session,
+                    existing.id,
+                    external_event_id,
+                    "call.opened",
+                    event,
+                    _event_ts(event),
                 )
                 await self._write_live_snapshot(existing)
                 return existing
@@ -282,7 +295,9 @@ class CallIngestHandler:
         )
         session.add(call)
         await session.flush()
-        await self._record_event(session, call.id, external_event_id, "call.opened", event, ts)
+        await self._record_event(
+            session, call.id, external_event_id, "call.opened", event, ts
+        )
         await self._write_live_snapshot(call)
         return call
 
@@ -293,12 +308,14 @@ class CallIngestHandler:
         if event.get("type") != "node_entered":
             return  # raw event is already stored; nothing else to persist
 
-        seq = await self._next_seq(session, call.id, CallNodePath.call_id, CallNodePath.seq)
+        seq = await self._next_seq(
+            session, call.id, CallNodePath.call_id, CallNodePath.seq
+        )
         session.add(
             CallNodePath(
                 call_id=call.id,
                 seq=seq,
-node_id=_opt_str(event, "nodeId") or "unknown",
+                node_id=_opt_str(event, "nodeId") or "unknown",
                 node_type=_opt_str(event, "nodeType"),
                 node_name=_opt_str(event, "nodeName"),
                 entered_at=ts,
@@ -320,7 +337,9 @@ node_id=_opt_str(event, "nodeId") or "unknown",
             return
 
         text = str(event.get("text") or "")
-        seq = await self._next_seq(session, call.id, TranscriptTurn.call_id, TranscriptTurn.seq)
+        seq = await self._next_seq(
+            session, call.id, TranscriptTurn.call_id, TranscriptTurn.seq
+        )
         stmt = pg_insert(TranscriptTurn.__table__).values(
             id=uuid.uuid4(),
             call_id=call.id,
@@ -378,8 +397,12 @@ node_id=_opt_str(event, "nodeId") or "unknown",
         )
         if call.ended_at is None or ts > call.ended_at:
             call.ended_at = ts
-        call.duration_seconds = _opt_int(event.get("durationSeconds"), call.duration_seconds)
-        call.talk_time_seconds = _opt_int(event.get("talkTimeSeconds"), default=call.talk_time_seconds)
+        call.duration_seconds = _opt_int(
+            event.get("durationSeconds"), call.duration_seconds
+        )
+        call.talk_time_seconds = _opt_int(
+            event.get("talkTimeSeconds"), default=call.talk_time_seconds
+        )
         if proposed and proposed != call.disposition:
             call.disposition = proposed
             qual, reason = policies.qualification_result(proposed)
@@ -435,7 +458,11 @@ node_id=_opt_str(event, "nodeId") or "unknown",
             )
         ).scalar_one_or_none()
         if exists:
-            log.info("ingest: duplicate event skipped", call_id=str(call_id), external_event_id=external_event_id)
+            log.info(
+                "ingest: duplicate event skipped",
+                call_id=str(call_id),
+                external_event_id=external_event_id,
+            )
             return False
 
         payload = {
@@ -474,26 +501,41 @@ node_id=_opt_str(event, "nodeId") or "unknown",
     ) -> int:
         current = (
             await session.execute(
-                select(func.coalesce(func.max(seq_column), 0)).where(id_column == call_id)
+                select(func.coalesce(func.max(seq_column), 0)).where(
+                    id_column == call_id
+                )
             )
         ).scalar_one()
         return int(current) + 1
 
-    async def _reevaluate_qualification(self, session: AsyncSession, call: Call) -> None:
+    async def _reevaluate_qualification(
+        self, session: AsyncSession, call: Call
+    ) -> None:
         rows = (
-            await session.execute(
-                select(CallQualificationField).where(CallQualificationField.call_id == call.id)
+            (
+                await session.execute(
+                    select(CallQualificationField).where(
+                        CallQualificationField.call_id == call.id
+                    )
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         evidence = {row.field: _unwrap_field_value(row.value) for row in rows}
         status, reason = policies.evaluate_qualification(evidence)
-        if status.value == call.qualification_status and reason == call.disqualification_reason:
+        if (
+            status.value == call.qualification_status
+            and reason == call.disqualification_reason
+        ):
             return
         call.qualification_status = status.value
         call.disqualification_reason = reason
         await self._update_live_snapshot(call)
 
-    async def _upsert_performance(self, session: AsyncSession, call_id: uuid.UUID, performance: dict) -> None:
+    async def _upsert_performance(
+        self, session: AsyncSession, call_id: uuid.UUID, performance: dict
+    ) -> None:
         values: dict[str, Any] = {}
         turn_count = _opt_int(performance.get("turnCount"))
         if turn_count is not None:
@@ -538,7 +580,9 @@ node_id=_opt_str(event, "nodeId") or "unknown",
             await client.set(LIVE_SNAPSHOT_KEY.format(call.id), json.dumps(snap))
             await client.sadd(LIVE_INDEX_KEY, str(call.id))
         except Exception as exc:  # noqa: BLE001 - Redis is best-effort
-            log.warning("ingest: redis live write failed", call_id=str(call.id), error=str(exc))
+            log.warning(
+                "ingest: redis live write failed", call_id=str(call.id), error=str(exc)
+            )
 
     async def _update_live_snapshot(
         self,
@@ -562,7 +606,9 @@ node_id=_opt_str(event, "nodeId") or "unknown",
                 snap["nodeName"] = node_name
             await client.set(key, json.dumps(snap))
         except Exception as exc:  # noqa: BLE001 - Redis is best-effort
-            log.warning("ingest: redis live update failed", call_id=str(call.id), error=str(exc))
+            log.warning(
+                "ingest: redis live update failed", call_id=str(call.id), error=str(exc)
+            )
 
     async def _remove_live_snapshot(self, call: Call) -> None:
         try:
@@ -570,7 +616,9 @@ node_id=_opt_str(event, "nodeId") or "unknown",
             await client.delete(LIVE_SNAPSHOT_KEY.format(call.id))
             await client.srem(LIVE_INDEX_KEY, str(call.id))
         except Exception as exc:  # noqa: BLE001 - Redis is best-effort
-            log.warning("ingest: redis live remove failed", call_id=str(call.id), error=str(exc))
+            log.warning(
+                "ingest: redis live remove failed", call_id=str(call.id), error=str(exc)
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -599,11 +647,17 @@ def _decode(value: bytes | None) -> dict[str, Any] | None:
     return decoded if isinstance(decoded, dict) else None
 
 
-async def _process_message(handler: CallIngestHandler, message: aiokafka.ConsumerRecord) -> bool:
+async def _process_message(
+    handler: CallIngestHandler, message: aiokafka.ConsumerRecord
+) -> bool:
     """Apply one message transactionally; ``True`` = handled, ``False`` = retry."""
     event = _decode(message.value)
     if event is None:
-        log.warning("ingest: poison message acked and skipped", topic=message.topic, offset=message.offset)
+        log.warning(
+            "ingest: poison message acked and skipped",
+            topic=message.topic,
+            offset=message.offset,
+        )
         return True
     try:
         async with async_session_factory() as session:

@@ -216,7 +216,9 @@ class CallListQuery(APIBaseModel):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=200)
     search: str | None = Field(default=None, max_length=160)
-    sort: str | None = None  # started_at | duration_seconds | attempt_number | reference
+    sort: str | None = (
+        None  # started_at | duration_seconds | attempt_number | reference
+    )
     order: str | None = None  # asc | desc
     status: CallStatus | None = None
     direction: CallDirection | None = None

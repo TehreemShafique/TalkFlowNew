@@ -1,4 +1,5 @@
 """Shared database package: base classes, models and table projections."""
+
 from app.packages.db.base import Base, utc_now, uuid7
 from app.packages.db.models import (
     CallRecording,

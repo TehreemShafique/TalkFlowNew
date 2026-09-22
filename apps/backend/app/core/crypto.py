@@ -4,6 +4,7 @@ Used to encrypt integration secrets at rest (e.g. dialer API tokens).  The key
 is derived from the control plane's ``secret_key`` so no extra secret material
 needs to be provisioned.
 """
+
 from __future__ import annotations
 
 import base64

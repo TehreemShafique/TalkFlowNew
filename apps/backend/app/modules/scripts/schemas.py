@@ -87,7 +87,7 @@ class ScriptDTO(APIBaseModel):
     versions: list[ScriptVersionSummaryDTO] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
-    version_counter: int = Field(alias="version", default=1)
+    version: int = Field(default=1)
     # Projections for simplified frontend components
     greeting: str | None = None
     consent: str | None = None
@@ -156,6 +156,12 @@ class ScriptDiffDTO(APIBaseModel):
     diff_summary: str
 
 
+class SimulationEventInput(APIBaseModel):
+    node_id: str
+    event: str
+    value: Any = None
+
+
 class SimulationInput(APIBaseModel):
     node_id: str
     user_response: str | None = None
@@ -163,6 +169,7 @@ class SimulationInput(APIBaseModel):
 
 
 class ScriptSimulationRequest(APIBaseModel):
+    events: list[SimulationEventInput] = Field(default_factory=list)
     inputs: list[SimulationInput] = Field(default_factory=list)
 
 
@@ -178,9 +185,12 @@ class ScriptSimulationStepDTO(APIBaseModel):
 
 
 class ScriptSimulationResultDTO(APIBaseModel):
+    node_path: list[str] = Field(default_factory=list)
+    captured_fields: dict[str, Any] = Field(default_factory=dict)
+    qualification_status: str = "in_progress"
+    compliance_unsatisfied: list[str] = Field(default_factory=list)
     steps: list[ScriptSimulationStepDTO] = Field(default_factory=list)
     spoken_prompts: list[str] = Field(default_factory=list)
-    captured_fields: dict[str, Any] = Field(default_factory=dict)
     final_disposition: str | None = None
     completed: bool = False
 

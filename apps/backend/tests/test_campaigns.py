@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.modules.campaigns.errors import (
     CAMPAIGN_NO_ACTIVE_SCRIPT,
+    CAMPAIGN_NO_CALLER_IDS,
     CAMPAIGN_NO_COMPLIANCE_PROFILE,
     CAMPAIGN_NO_LIST_MAPPING,
     CAMPAIGN_NO_RULE_SET,
@@ -44,13 +45,14 @@ def _complete_payload(name: str = "Live Campaign") -> dict:
 
 def test_can_start_campaign_bare_returns_all_five_problems():
     problems = can_start_campaign(CampaignSnapshot())
-    assert len(problems) == 5
+    assert len(problems) == 6
     assert set(problems) == {
         CAMPAIGN_NO_ACTIVE_SCRIPT,
         CAMPAIGN_NO_RULE_SET,
         CAMPAIGN_NO_COMPLIANCE_PROFILE,
         CAMPAIGN_NO_VERIFIER_GROUP,
         CAMPAIGN_NO_LIST_MAPPING,
+        CAMPAIGN_NO_CALLER_IDS,
     }
 
 
@@ -62,6 +64,7 @@ def test_can_start_campaign_complete_returns_empty():
         closer_in_group="Licensed_QA_Pool",
         vicidial_campaign_id="VICI_CAMP_01",
         vicidial_list_ids=("1001",),
+        caller_ids=("18005550100",),
     )
     assert can_start_campaign(snap) == []
 
@@ -119,7 +122,7 @@ async def test_start_reports_every_gap_at_once(client, seeded):
     assert resp.status_code == 409
     error = resp.json()["error"]
     assert error["code"] == "campaign.start_failed"
-    assert len(error["details"]["problems"]) == 5
+    assert len(error["details"]["problems"]) == 6
 
 
 async def test_start_then_pause_lifecycle(client, seeded):

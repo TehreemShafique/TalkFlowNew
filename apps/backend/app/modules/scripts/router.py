@@ -34,7 +34,9 @@ router = APIRouter(prefix="/scripts", tags=["scripts"])
 
 ViewGate = Annotated[UserContext, Depends(require_permissions([PERM_SCRIPT_VIEW]))]
 EditGate = Annotated[UserContext, Depends(require_permissions([PERM_SCRIPT_EDIT]))]
-ApproveGate = Annotated[UserContext, Depends(require_permissions([PERM_SCRIPT_APPROVE]))]
+ApproveGate = Annotated[
+    UserContext, Depends(require_permissions([PERM_SCRIPT_APPROVE]))
+]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
@@ -48,7 +50,9 @@ async def list_scripts(
     return await service.list_scripts(db, actor, query)
 
 
-@router.post("", response_model=DataResponse[ScriptDTO], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=DataResponse[ScriptDTO], status_code=status.HTTP_201_CREATED
+)
 async def create_script(
     payload: ScriptCreate,
     actor: EditGate,
@@ -90,7 +94,11 @@ async def update_script(
     return await service.update_script(db, actor, id, payload)
 
 
-@router.post("/{id}/duplicate", response_model=DataResponse[ScriptDTO], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{id}/duplicate",
+    response_model=DataResponse[ScriptDTO],
+    status_code=status.HTTP_201_CREATED,
+)
 async def duplicate_script(
     id: uuid.UUID,
     actor: EditGate,
@@ -100,7 +108,9 @@ async def duplicate_script(
     return await service.duplicate_script(db, actor, id)
 
 
-@router.get("/{id}/versions", response_model=DataResponse[list[ScriptVersionSummaryDTO]])
+@router.get(
+    "/{id}/versions", response_model=DataResponse[list[ScriptVersionSummaryDTO]]
+)
 async def list_versions(
     id: uuid.UUID,
     actor: ViewGate,
@@ -110,7 +120,11 @@ async def list_versions(
     return await service.list_versions(db, actor, id)
 
 
-@router.post("/{id}/versions", response_model=DataResponse[ScriptVersionDTO], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{id}/versions",
+    response_model=DataResponse[ScriptVersionDTO],
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_version(
     id: uuid.UUID,
     payload: ScriptVersionCreate,
@@ -155,7 +169,9 @@ async def submit_version(
     return await service.submit_version(db, actor, id, v)
 
 
-@router.post("/{id}/versions/{v}/approve", response_model=DataResponse[ScriptVersionDTO])
+@router.post(
+    "/{id}/versions/{v}/approve", response_model=DataResponse[ScriptVersionDTO]
+)
 async def approve_version(
     id: uuid.UUID,
     v: str,
@@ -178,7 +194,9 @@ async def reject_version(
     return await service.reject_version(db, actor, id, v, payload)
 
 
-@router.post("/{id}/versions/{v}/activate", response_model=DataResponse[ScriptVersionDTO])
+@router.post(
+    "/{id}/versions/{v}/activate", response_model=DataResponse[ScriptVersionDTO]
+)
 async def activate_version(
     id: uuid.UUID,
     v: str,
@@ -202,7 +220,10 @@ async def diff_version(
     return await service.diff_version(db, actor, id, v, against)
 
 
-@router.post("/{id}/versions/{v}/simulate", response_model=DataResponse[ScriptSimulationResultDTO])
+@router.post(
+    "/{id}/versions/{v}/simulate",
+    response_model=DataResponse[ScriptSimulationResultDTO],
+)
 async def simulate_version(
     id: uuid.UUID,
     v: str,

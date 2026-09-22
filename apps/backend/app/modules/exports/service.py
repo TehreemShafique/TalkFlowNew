@@ -136,9 +136,7 @@ async def download_export(
         details={"report": job.report, "rows": job.row_count},
     )
     await session.commit()
-    logger.info(
-        "export downloaded", job_id=str(job.id), actor=str(user.user_id)
-    )
+    logger.info("export downloaded", job_id=str(job.id), actor=str(user.user_id))
     filename = f"{job.report}_{job.id.hex[:8]}.csv"
     return data, filename
 

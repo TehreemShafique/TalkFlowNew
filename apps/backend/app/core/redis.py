@@ -1,4 +1,5 @@
 """Redis client: role cache, token blacklist, download tokens and grants."""
+
 from __future__ import annotations
 
 import json
@@ -44,7 +45,10 @@ class DownloadTokenStore:
         """Atomically consume a grant; returns True only if unused."""
         try:
             result = await self.client.set(
-                f"{self._prefix}:{jti}", "used", nx=True, ex=settings.download_token_ttl_minutes * 60
+                f"{self._prefix}:{jti}",
+                "used",
+                nx=True,
+                ex=settings.download_token_ttl_minutes * 60,
             )
             return result is True
         except Exception as exc:  # noqa: BLE001 - Redis unavailable fallback
@@ -57,6 +61,7 @@ token_store = DownloadTokenStore()
 
 # ── Role cache (list of role names per user) ──────────────────────────────
 
+
 async def get_cached_user_roles(user_id) -> list[str] | None:
     try:
         cached = await get_redis().get(f"user_roles:{user_id}")
@@ -66,7 +71,9 @@ async def get_cached_user_roles(user_id) -> list[str] | None:
         return None
 
 
-async def set_cached_user_roles(user_id, role_names: list[str], ttl: int | None = None) -> None:
+async def set_cached_user_roles(
+    user_id, role_names: list[str], ttl: int | None = None
+) -> None:
     try:
         await get_redis().setex(
             f"user_roles:{user_id}",
@@ -85,6 +92,7 @@ async def clear_cached_user_roles(user_id) -> None:
 
 
 # ── Token blacklist (revoked jti) ─────────────────────────────────────────
+
 
 async def is_token_blacklisted(jti: str) -> bool:
     try:

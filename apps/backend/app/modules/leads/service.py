@@ -46,6 +46,7 @@ from app.modules.leads.events import (
 )
 from app.modules.leads.policies import (
     classify_row,
+    generate_external_key,
     missing_required_fields,
     prepare_row,
     resolve_scope_constraints,
@@ -54,14 +55,17 @@ from app.modules.leads.schemas import (
     MAX_IMPORT_ROWS,
     MAX_UPLOAD_BYTES,
     PREVIEW_SAMPLE_ROWS,
+    BulkAssignRequest,
     ColumnPreview,
     ImportJobDTO,
     ImportUploadResponse,
+    LeadBatchDTO,
     LeadCreate,
     LeadDTO,
     LeadListQuery,
     LeadUpdate,
     MappingRequest,
+    UpdateBatchCampaignRequest,
     ValidationSummary,
 )
 from app.packages.contracts.base import DataResponse, PagedMeta, PagedResponse
@@ -115,6 +119,7 @@ def _to_dto(row: tuple[Lead, str | None]) -> LeadDTO:
     lead, campaign_name = row
     return LeadDTO(
         id=lead.id,
+        external_key=lead.external_key or generate_external_key(),
         first_name=lead.first_name,
         last_name=lead.last_name,
         phone=lead.phone_normalized,
@@ -190,8 +195,7 @@ def _parse_csv(data: bytes) -> tuple[list[str], list[dict[str, str]]]:
     if reader.fieldnames is None:
         raise ImportEmptyError()
     rows = [
-        {key: (value or "").strip() for key, value in row.items()}
-        for row in reader
+        {key: (value or "").strip() for key, value in row.items()} for row in reader
     ]
     return list(reader.fieldnames), rows
 
@@ -236,9 +240,7 @@ async def list_leads(
 async def get_lead(
     session: AsyncSession, user: UserContext, lead_id: uuid.UUID
 ) -> DataResponse[LeadDTO]:
-    return DataResponse[LeadDTO](
-        data=_to_dto(await _load_lead(session, user, lead_id))
-    )
+    return DataResponse[LeadDTO](data=_to_dto(await _load_lead(session, user, lead_id)))
 
 
 async def get_import_job(
@@ -246,6 +248,61 @@ async def get_import_job(
 ) -> DataResponse[ImportJobDTO]:
     return DataResponse[ImportJobDTO](
         data=_to_import_job_dto(await _load_job(session, user, job_id))
+    )
+
+
+async def list_batches(
+    session: AsyncSession, user: UserContext
+) -> DataResponse[list[LeadBatchDTO]]:
+    _ = user
+    rows = await repo.list_import_batches(session)
+    dtos = [
+        LeadBatchDTO(
+            id=job.id,
+            file_name=job.file_name,
+            status=ImportJobStatus(job.status),
+            total_rows=job.total_rows,
+            imported_rows=job.imported_rows,
+            columns=job.columns or [],
+            campaign_id=job.campaign_id,
+            campaign_name=campaign_name,
+            created_at=job.created_at,
+        )
+        for job, campaign_name in rows
+    ]
+    return DataResponse[list[LeadBatchDTO]](data=dtos)
+
+
+async def update_batch_campaign(
+    session: AsyncSession,
+    user: UserContext,
+    job_id: uuid.UUID,
+    campaign_id: uuid.UUID | None,
+) -> DataResponse[dict[str, Any]]:
+    _ = user
+    await repo.update_job_campaign(session, job_id, campaign_id)
+    await session.commit()
+    return DataResponse[dict[str, Any]](
+        data={
+            "status": "ok",
+            "jobId": str(job_id),
+            "campaignId": str(campaign_id) if campaign_id else None,
+        }
+    )
+
+
+async def delete_batch(
+    session: AsyncSession,
+    user: UserContext,
+    job_id: uuid.UUID,
+) -> DataResponse[dict[str, Any]]:
+    _ = user
+    success = await repo.delete_import_batch(session, job_id)
+    if not success:
+        raise NotFoundError("Lead import batch not found")
+    await session.commit()
+    return DataResponse[dict[str, Any]](
+        data={"deleted": True, "batchId": str(job_id)}
     )
 
 
@@ -274,12 +331,14 @@ async def create_lead(
     phone = normalize_us_phone(payload.phone)
     if phone is None:
         raise LeadInvalidPhoneError()
-    if payload.campaign_id is not None and await repo.campaign_name(
-        session, payload.campaign_id
-    ) is None:
+    if (
+        payload.campaign_id is not None
+        and await repo.campaign_name(session, payload.campaign_id) is None
+    ):
         raise CampaignNotFoundError(payload.campaign_id)
 
     lead = Lead(
+        external_key=generate_external_key(),
         first_name=payload.first_name,
         last_name=payload.last_name,
         phone_normalized=phone,
@@ -393,7 +452,9 @@ async def upload_import(
         columns=[
             {
                 "name": header,
-                "sample_values": [row.get(header, "") for row in rows[:PREVIEW_SAMPLE_ROWS]],
+                "sample_values": [
+                    row.get(header, "") for row in rows[:PREVIEW_SAMPLE_ROWS]
+                ],
             }
             for header in headers
         ],
@@ -450,15 +511,19 @@ async def save_mapping(
         ImportJobStatus.VALIDATING.value,
     ):
         raise ImportInvalidStateError(
-            details={"status": job.status, "reason": "Mapping is only editable before commit."}
+            details={
+                "status": job.status,
+                "reason": "Mapping is only editable before commit.",
+            }
         )
 
     missing = missing_required_fields(payload.mapping)
     if missing:
         raise ImportMappingInvalidError(missing)
-    if payload.campaign_id is not None and await repo.campaign_name(
-        session, payload.campaign_id
-    ) is None:
+    if (
+        payload.campaign_id is not None
+        and await repo.campaign_name(session, payload.campaign_id) is None
+    ):
         raise CampaignNotFoundError(payload.campaign_id)
 
     job.mapping = payload.mapping
@@ -511,7 +576,11 @@ async def save_mapping(
             duplicate_in_file = verdict.reason == "duplicate_in_file"
             if not duplicate_in_file and payload.options.update_existing:
                 candidates.append(
-                    {"kind": "update", "system": prepared.system, "custom": prepared.custom}
+                    {
+                        "kind": "update",
+                        "system": prepared.system,
+                        "custom": prepared.custom,
+                    }
                 )
                 counts["valid"] += 1
                 counts["duplicates_system"] += 1
@@ -549,7 +618,9 @@ async def save_mapping(
 
         storage = get_storage_provider()
         key = f"imports/{job.id}_errors.csv"
-        await storage.put_bytes(key, _build_error_report(errors), content_type="text/csv")
+        await storage.put_bytes(
+            key, _build_error_report(errors), content_type="text/csv"
+        )
         job.error_report_key = key
 
     await repo.save_import_job(session, job)
@@ -574,21 +645,60 @@ async def save_mapping(
     return DataResponse[ImportJobDTO](data=_to_import_job_dto(job))
 
 
+async def bulk_assign_leads(
+    session: AsyncSession, user: UserContext, payload: BulkAssignRequest
+) -> DataResponse[dict[str, Any]]:
+    """Bulk assign leads to campaign or user (Step 27)."""
+    count = await repo.bulk_assign(
+        session,
+        lead_ids=payload.lead_ids,
+        campaign_id=payload.campaign_id,
+        assigned_to=payload.assigned_to,
+    )
+    await write_audit(
+        session,
+        actor_id=user.user_id,
+        actor_role=user.role,
+        action="lead.bulk_assign",
+        resource_type="lead",
+        resource_id="bulk",
+        result=AuditResult.SUCCESS,
+        details={
+            "count": count,
+            "campaign_id": str(payload.campaign_id) if payload.campaign_id else None,
+        },
+    )
+    await session.commit()
+    return DataResponse[dict[str, Any]](
+        data={
+            "updated_count": count,
+            "lead_ids": [str(lid) for lid in payload.lead_ids],
+        }
+    )
+
+
 async def commit_import(
-    session: AsyncSession, user: UserContext, job_id: uuid.UUID
+    session: AsyncSession,
+    user: UserContext,
+    job_id: uuid.UUID,
+    idempotency_key: str | None = None,
 ) -> DataResponse[ImportJobDTO]:
-    """STEP 5: insert the surviving rows and mark the job complete.
+    """STEP 5: insert the surviving rows in batches of 1000 and mark the job complete (Step 28).
 
     Idempotent: committing an already-``completed`` job returns it unchanged so
     a retried request can never double-import.
     """
+    _ = idempotency_key
     job = await _load_job(session, user, job_id)
 
     if job.status == ImportJobStatus.COMPLETED.value:
         return DataResponse[ImportJobDTO](data=_to_import_job_dto(job))
     if job.status != ImportJobStatus.VALIDATING.value:
         raise ImportInvalidStateError(
-            details={"status": job.status, "reason": "Save the column mapping before committing."}
+            details={
+                "status": job.status,
+                "reason": "Save the column mapping before committing.",
+            }
         )
     if not job.mapping:
         raise ImportNoMappingError()
@@ -596,7 +706,9 @@ async def commit_import(
     now = datetime.now(UTC)
     options = job.options or {}
     campaign_id = job.campaign_id
-    assigned_to = uuid.UUID(options["assigned_to"]) if options.get("assigned_to") else None
+    assigned_to = (
+        uuid.UUID(options["assigned_to"]) if options.get("assigned_to") else None
+    )
     initial_status = options.get("initial_status", LeadStatus.NEW.value)
 
     inserts: list[dict[str, Any]] = []
@@ -624,6 +736,7 @@ async def commit_import(
         inserts.append(
             {
                 "id": uuid.uuid4(),
+                "external_key": generate_external_key(),
                 "first_name": system.get("first_name"),
                 "last_name": system.get("last_name"),
                 "phone_normalized": system["phone"],
@@ -651,7 +764,11 @@ async def commit_import(
     await repo.save_import_job(session, job)
     await session.flush()
 
-    await repo.bulk_insert_leads(session, inserts)
+    # Batch insert in chunks of 1,000 (Step 28)
+    for i in range(0, len(inserts), 1000):
+        batch = inserts[i : i + 1000]
+        await repo.bulk_insert_leads(session, batch)
+
     await repo.bulk_update_leads_by_phone(session, updates)
 
     job.imported_rows = len(inserts) + len(updates)
@@ -666,7 +783,11 @@ async def commit_import(
         resource_type="lead_import_job",
         resource_id=str(job.id),
         result=AuditResult.SUCCESS,
-        details={"inserted": len(inserts), "updated": len(updates), "counts": job.validation or {}},
+        details={
+            "inserted": len(inserts),
+            "updated": len(updates),
+            "counts": job.validation or {},
+        },
     )
     await publish_lead_event(
         session,

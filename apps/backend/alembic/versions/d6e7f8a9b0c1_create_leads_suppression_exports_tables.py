@@ -24,6 +24,7 @@ Revision ID: d6e7f8a9b0c1
 Revises: b5c6d7e8f901
 Create Date: 2026-09-18
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -136,11 +137,21 @@ def _create_lead_import_jobs() -> None:
             server_default=sa.text("'uploading'"),
             nullable=False,
         ),
-        sa.Column("total_rows", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("imported_rows", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("duplicate_rows", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("suppressed_rows", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("invalid_rows", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "total_rows", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "imported_rows", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "duplicate_rows", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "suppressed_rows", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "invalid_rows", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.Column("columns", _JSONB, nullable=True),
         sa.Column("mapping", _JSONB, nullable=True),
         sa.Column("rows", _JSONB, nullable=True),
@@ -167,7 +178,9 @@ def _create_lead_import_jobs() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_lead_import_jobs_status", "lead_import_jobs", ["status"])
-    op.create_index("ix_lead_import_jobs_created_by", "lead_import_jobs", ["created_by"])
+    op.create_index(
+        "ix_lead_import_jobs_created_by", "lead_import_jobs", ["created_by"]
+    )
 
 
 def _create_suppression_entries() -> None:
@@ -206,13 +219,18 @@ def _create_suppression_entries() -> None:
             sa.ForeignKeyConstraint(["removed_by"], ["users.id"], ondelete="SET NULL"),
             sa.PrimaryKeyConstraint("id"),
         )
-    indexes = {ix["name"] for ix in sa.inspect(op.get_bind()).get_indexes("suppression_entries")}
+    indexes = {
+        ix["name"]
+        for ix in sa.inspect(op.get_bind()).get_indexes("suppression_entries")
+    }
     if "ix_suppression_entries_phone" not in indexes:
         op.create_index(
             "ix_suppression_entries_phone", "suppression_entries", ["phone_normalized"]
         )
     if "ix_suppression_entries_reason" not in indexes:
-        op.create_index("ix_suppression_entries_reason", "suppression_entries", ["reason"])
+        op.create_index(
+            "ix_suppression_entries_reason", "suppression_entries", ["reason"]
+        )
     if "uq_suppression_entries_active_phone" not in indexes:
         op.create_index(
             "uq_suppression_entries_active_phone",
@@ -244,7 +262,9 @@ def _create_exports() -> None:
             server_default=sa.text("'queued'"),
             nullable=False,
         ),
-        sa.Column("row_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "row_count", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.Column("storage_key", sa.String(length=512), nullable=True),
         sa.Column("error", sa.String(length=512), nullable=True),
         sa.Column("created_by", sa.Uuid(), nullable=True),

@@ -34,7 +34,9 @@ from app.packages.contracts.base import DataResponse, PagedResponse
 router = APIRouter(prefix="/calls", tags=["calls"])
 
 ViewGate = Annotated[UserContext, Depends(require_permissions([PERM_CALL_VIEW]))]
-DispoGate = Annotated[UserContext, Depends(require_permissions([PERM_CALL_DISPOSITION]))]
+DispoGate = Annotated[
+    UserContext, Depends(require_permissions([PERM_CALL_DISPOSITION]))
+]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
@@ -129,3 +131,42 @@ async def get_script_path(
 ):
     """Node sequence the call traversed (section 26.4)."""
     return await service.get_script_path(db, actor, call_id)
+
+
+# ---------------------------------------------------------------------------
+# Step 37 Call Recording Serving
+# ---------------------------------------------------------------------------
+
+@router.get("/{call_id}/recording")
+async def get_call_recording(
+    call_id: uuid.UUID,
+    actor: ViewGate,
+    db: DbSession,
+):
+    """Fetch recording details for call (Step 37)."""
+    from app.modules.recordings import service as rec_service
+    return await rec_service.get_recording_by_call_id(db, actor, call_id)
+
+
+@router.get("/{call_id}/recording/playback-url")
+async def get_call_playback_url(
+    call_id: uuid.UUID,
+    actor: ViewGate,
+    db: DbSession,
+):
+    """5-minute presigned playback URL + audited recording.played (Step 37)."""
+    from app.modules.recordings import service as rec_service
+    url = await rec_service.get_call_playback_url(db, actor, call_id)
+    return {"data": {"url": url}}
+
+
+@router.post("/{call_id}/recording/download-token")
+async def get_call_download_token(
+    call_id: uuid.UUID,
+    actor: ViewGate,
+    db: DbSession,
+):
+    """Single-use download token + audited recording.downloaded (Step 37)."""
+    from app.modules.recordings import service as rec_service
+    token = await rec_service.get_call_download_token(db, actor, call_id)
+    return {"data": {"token": token}}

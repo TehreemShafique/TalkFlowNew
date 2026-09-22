@@ -1,0 +1,9 @@
+{
+  "entryId": "n_greeting",
+  "nodes": [
+    {
+      "id": "n_greeting",
+      "transitions": []
+    }
+  ]
+}

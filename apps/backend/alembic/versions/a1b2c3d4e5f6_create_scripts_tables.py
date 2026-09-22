@@ -195,8 +195,12 @@ def upgrade() -> None:
             server_default=sa.text("clock_timestamp()"),
         ),
     )
-    op.create_index("ix_script_activations_script_id", "script_activations", ["script_id"])
-    op.create_index("ix_script_activations_campaign_id", "script_activations", ["campaign_id"])
+    op.create_index(
+        "ix_script_activations_script_id", "script_activations", ["script_id"]
+    )
+    op.create_index(
+        "ix_script_activations_campaign_id", "script_activations", ["campaign_id"]
+    )
 
     # 5. Add FKs from campaigns to scripts and script_versions
     op.create_foreign_key(
@@ -218,7 +222,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("fk_campaigns_active_script_version_id", "campaigns", type_="foreignkey")
+    op.drop_constraint(
+        "fk_campaigns_active_script_version_id", "campaigns", type_="foreignkey"
+    )
     op.drop_constraint("fk_campaigns_script_id", "campaigns", type_="foreignkey")
     op.drop_table("script_activations")
     op.drop_constraint("fk_scripts_active_version_id", "scripts", type_="foreignkey")

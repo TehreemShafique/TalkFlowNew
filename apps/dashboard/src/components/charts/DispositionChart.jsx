@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { PieChart, MoreHorizontal } from "lucide-react";
 import { DISPOSITION_DATA } from "@/data";
 import { useFilters } from "@/context";
 
@@ -18,45 +19,54 @@ export default function DispositionChart() {
     setHoveredItem(item);
   };
 
+  // Filter top dispositions (> 0% or top 9 matching screenshot)
+  const displayItems = DISPOSITION_DATA.filter((d) => d.percentage > 0).slice(0, 9);
+
   return (
-    <div className="relative flex h-full w-full flex-col rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition-colors duration-200 dark:border-[#1e1e1e] dark:bg-[#0d0d0d]">
-      <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">
-        Disposition %
-      </h3>
+    <div className="relative flex h-full w-full flex-col rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-2xs transition-all duration-200 dark:border-[#1a1a1a] dark:bg-[#000000]">
+      {/* Header with PieChart icon on left and MoreHorizontal options menu on right */}
+      <div className="flex items-center justify-between border-b border-neutral-100 pb-3 dark:border-neutral-800/80 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+            <PieChart className="h-4 w-4" />
+          </div>
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+            Disposition %
+          </h3>
+        </div>
+        <button
+          type="button"
+          title="More Options"
+          className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </div>
 
       <div
-        className="relative mt-4 flex flex-col gap-2.5"
+        className="relative flex flex-col gap-2.5"
         onMouseLeave={() => setHoveredItem(null)}
       >
-        {/* Background Vertical Grid Dotted Lines */}
-        <div className="pointer-events-none absolute inset-0 flex justify-between pl-16 pr-12 opacity-15">
-          <div className="h-full border-r border-dashed border-neutral-400 dark:border-neutral-600" />
-          <div className="h-full border-r border-dashed border-neutral-400 dark:border-neutral-600" />
-          <div className="h-full border-r border-dashed border-neutral-400 dark:border-neutral-600" />
-          <div className="h-full border-r border-dashed border-neutral-400 dark:border-neutral-600" />
-        </div>
-
         {/* Floating Tooltip */}
         {hoveredItem && (
           <div
-            className="pointer-events-none absolute z-50 rounded-lg border border-neutral-700/80 bg-[#161618] px-3.5 py-2 text-xs shadow-2xl backdrop-blur-md transition-all duration-75"
+            className="pointer-events-none absolute z-50 rounded-xl border border-neutral-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur-md transition-all duration-75 dark:border-neutral-800 dark:bg-[#121624]/95"
             style={{
               top: `${mousePos.y + 12}px`,
               left: `${Math.min(Math.max(mousePos.x - 30, 20), 280)}px`,
             }}
           >
-            <div className="font-semibold text-neutral-200">
+            <div className="font-bold text-neutral-900 dark:text-white">
               {hoveredItem.code}
             </div>
-            <div className="mt-0.5 font-medium text-cyan-400">
-              Count : {hoveredItem.count.toLocaleString()} ({hoveredItem.percentage.toFixed(1)}%)
+            <div className="mt-0.5 font-semibold text-blue-600 dark:text-blue-400">
+              Count: {hoveredItem.count.toLocaleString()} ({hoveredItem.percentage.toFixed(1)}%)
             </div>
           </div>
         )}
 
-        {/* Horizontal Bars */}
-        {DISPOSITION_DATA.map((item) => {
-          const isHovered = hoveredItem?.code === item.code;
+        {/* Horizontal Progress Bars */}
+        {displayItems.map((item) => {
           const isSelected =
             !selectedDispositions ||
             selectedDispositions.length === 0 ||
@@ -72,30 +82,24 @@ export default function DispositionChart() {
               }`}
             >
               {/* Left Code Label */}
-              <span className="w-16 shrink-0 pr-3 text-right text-[11px] font-medium text-neutral-600 transition-colors group-hover:text-neutral-950 dark:text-neutral-400 dark:group-hover:text-white">
+              <span className="w-16 shrink-0 pr-2 text-right text-[11px] font-bold text-neutral-700 transition-colors group-hover:text-blue-600 dark:text-neutral-300 dark:group-hover:text-blue-400">
                 {item.code}
               </span>
 
-              {/* Bar Track with Full-Width Hover Highlight */}
+              {/* Pill Track with Progress Fill */}
               <div className="relative flex flex-1 items-center">
-                <div
-                  className={`h-6 w-full rounded-sm transition-colors duration-150 ${
-                    isHovered
-                      ? "bg-slate-300 dark:bg-[#d1d5db]"
-                      : "bg-neutral-100 dark:bg-transparent"
-                  }`}
-                >
+                <div className="h-4 w-full rounded-full bg-neutral-100/90 dark:bg-[#151926] overflow-hidden p-0.5 shadow-inner">
                   <div
-                    className="h-full rounded-sm transition-all duration-300"
+                    className="h-full rounded-full transition-all duration-500"
                     style={{
-                      width: `${Math.max(item.percentage, 0.6)}%`,
+                      width: `${Math.max(item.percentage, 1.2)}%`,
                       backgroundColor: item.color,
                     }}
                   />
                 </div>
 
                 {/* Percentage Text on the Right */}
-                <span className="ml-2.5 w-11 shrink-0 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+                <span className="ml-3 w-12 shrink-0 text-right text-[11px] font-bold text-neutral-800 dark:text-neutral-200 font-mono">
                   {item.percentage.toFixed(1)}%
                 </span>
               </div>
@@ -105,4 +109,4 @@ export default function DispositionChart() {
       </div>
     </div>
   );
-}
+}

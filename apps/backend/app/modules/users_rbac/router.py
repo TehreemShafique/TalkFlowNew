@@ -3,6 +3,7 @@
 Every admin endpoint is guarded by an explicit `require_permissions` gate
 (Rule R4) using the user.* / role.* permission strings from core.permissions.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -51,7 +52,9 @@ async def list_users(
     actor: Annotated[UserContext, Depends(require_permissions([PERM_USER_VIEW]))],
     db: AsyncSession = Db,
 ):
-    users, total = await service.list_users(db, query.status, query.page, query.page_size)
+    users, total = await service.list_users(
+        db, query.status, query.page, query.page_size
+    )
     total_pages = (total + query.page_size - 1) // query.page_size
     return PagedResponse[UserPublic](
         data=[auth_service.serialize_user(u) for u in users],

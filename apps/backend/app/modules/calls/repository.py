@@ -75,6 +75,7 @@ def _order_by(query: CallListQuery):
 # List + search
 # ---------------------------------------------------------------------------
 
+
 async def list_calls(
     session: AsyncSession,
     query: CallListQuery,
@@ -97,9 +98,7 @@ async def list_calls(
     if query.disposition:
         base_filter.append(Call.disposition.ilike(f"%{query.disposition}%"))
     if query.qualification_status:
-        base_filter.append(
-            Call.qualification_status == query.qualification_status
-        )
+        base_filter.append(Call.qualification_status == query.qualification_status)
     if query.transfer_status:
         base_filter.append(Call.transfer_status == query.transfer_status)
     if query.campaign_id:
@@ -122,9 +121,9 @@ async def list_calls(
             select(leads_table.c.id)
             .where(
                 or_(
-                    func.concat_ws(" ", leads_table.c.first_name, leads_table.c.last_name).ilike(
-                        f"%{search}%"
-                    ),
+                    func.concat_ws(
+                        " ", leads_table.c.first_name, leads_table.c.last_name
+                    ).ilike(f"%{search}%"),
                     leads_table.c.first_name.ilike(f"%{search}%"),
                     leads_table.c.last_name.ilike(f"%{search}%"),
                 )
@@ -181,6 +180,7 @@ async def list_calls(
 # ---------------------------------------------------------------------------
 # Single-call helpers
 # ---------------------------------------------------------------------------
+
 
 async def get_call(
     session: AsyncSession,
@@ -248,17 +248,21 @@ async def list_live_calls(
 # Verifier name
 # ---------------------------------------------------------------------------
 
+
 async def get_user_name(
     session: AsyncSession,
     user_id: uuid.UUID,
 ) -> str | None:
-    user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    user = (
+        await session.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
     return (user.full_name or user.username) if user else None
 
 
 # ---------------------------------------------------------------------------
 # Sub-tables
 # ---------------------------------------------------------------------------
+
 
 async def get_qualification_fields(
     session: AsyncSession,
@@ -316,7 +320,7 @@ async def search_transcripts(
         select(TranscriptTurn)
         .join(Call, Call.id == TranscriptTurn.call_id)
         .where(TranscriptTurn.tsv.op("@@")(query))
-        .order_by(TranscriptTurn.created_at.desc(), TranscriptTurn.id)
+        .order_by(TranscriptTurn.start_ts_ms.desc(), TranscriptTurn.id)
     )
     for constraint in _scope_filters(constraints):
         stmt = stmt.where(constraint)
@@ -382,6 +386,7 @@ async def get_script_path(
 # ---------------------------------------------------------------------------
 # Write
 # ---------------------------------------------------------------------------
+
 
 async def save(session: AsyncSession, call: Call) -> None:
     session.add(call)

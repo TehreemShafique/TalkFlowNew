@@ -1,4 +1,5 @@
 """Role-assignment policy gates for user administration (Rule R4)."""
+
 from __future__ import annotations
 
 from app.core.permissions import APPROVABLE_ROLE_NAMES

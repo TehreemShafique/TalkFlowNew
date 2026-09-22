@@ -58,7 +58,7 @@ export default function DispositionComparison() {
 
       {/* Main Chart Container */}
       {isOpen && (
-        <div className="w-full rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition-colors duration-200 dark:border-[#1e1e1e] dark:bg-[#0d0d0d]">
+        <div className="w-full rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition-colors duration-200 dark:border-[#1a1a1a] dark:bg-[#000000]">
           <h3 className="mb-4 text-sm font-bold text-neutral-800 dark:text-neutral-200">
             Disposition Comparison
           </h3>

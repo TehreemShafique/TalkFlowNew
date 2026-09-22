@@ -8,6 +8,7 @@ committed frontend contract (apps/dashboard, spec section 13)::
     collection        {"data": [...], "meta": {page, pageSize, total, totalPages}}
     error             {"error": {code, message, status, details, traceId}}
 """
+
 from __future__ import annotations
 
 from typing import Any, Generic, TypeVar

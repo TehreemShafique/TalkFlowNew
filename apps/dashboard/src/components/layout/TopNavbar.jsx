@@ -11,11 +11,18 @@ import {
   Radio,
   X,
   ExternalLink,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useTheme } from "@/context";
 import CommandSearchModal from "./CommandSearchModal";
 
-export default function TopNavbar({ onToggleMobileSidebar, onNavigate }) {
+export default function TopNavbar({
+  onToggleMobileSidebar,
+  onToggleDesktopSidebar,
+  isSidebarCollapsed,
+  onNavigate,
+}) {
   const { theme, toggleTheme } = useTheme();
   const isLightMode = theme === "light";
 
@@ -64,7 +71,7 @@ export default function TopNavbar({ onToggleMobileSidebar, onNavigate }) {
 
   return (
     <>
-      <header className="flex h-14 w-full items-center justify-between border-b border-neutral-200 bg-white px-4 md:px-6 text-neutral-900 transition-colors duration-200 dark:border-[#1f1f1f] dark:bg-[#0a0a0a] dark:text-white shrink-0 z-30">
+      <header className="flex h-14 w-full items-center justify-between border-b border-neutral-200 bg-white px-4 md:px-6 text-neutral-900 transition-colors duration-200 dark:border-[#141414] dark:bg-[#000000] dark:text-white shrink-0 z-30">
         {/* Left Slot: Hamburger Menu + Brand Title + Global Search Bar */}
         <div className="flex items-center gap-3">
           {/* Mobile Overlay Drawer Hamburger Button [☰] */}
@@ -76,6 +83,22 @@ export default function TopNavbar({ onToggleMobileSidebar, onNavigate }) {
           >
             <Menu className="h-5 w-5" />
           </button>
+
+          {/* Desktop Sidebar Toggle Button */}
+          {onToggleDesktopSidebar && (
+            <button
+              type="button"
+              onClick={onToggleDesktopSidebar}
+              title={isSidebarCollapsed ? "Open Sidebar" : "Close Sidebar"}
+              className="hidden lg:flex items-center justify-center rounded-lg p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800 transition-colors"
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </button>
+          )}
 
           {/* Reserved Global Search Slot (⌘K / Ctrl+K) */}
           <button

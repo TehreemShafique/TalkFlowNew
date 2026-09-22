@@ -22,6 +22,7 @@ Revision ID: 136f1f2e55a9
 Revises: 2a1c4f7e96b3
 Create Date: 2026-09-17
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -73,45 +74,95 @@ def _create_single_master_admin_index() -> None:
 def upgrade() -> None:
     op.create_table(
         "roles",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("name", sa.String(length=64), nullable=False),
         sa.Column("domain", sa.String(length=32), nullable=False),
         sa.Column("description", sa.String(length=255), nullable=True),
-        sa.Column("is_system", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("clock_timestamp()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("clock_timestamp()"), nullable=False),
+        sa.Column(
+            "is_system", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("clock_timestamp()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("clock_timestamp()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_roles_name", "roles", ["name"], unique=True)
 
     op.create_table(
         "users",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("email", sa.String(length=254), nullable=False),
         sa.Column("username", sa.String(length=120), nullable=True),
         sa.Column("hashed_password", sa.String(length=255), nullable=False),
         sa.Column("collaborator_pin", sa.String(length=255), nullable=True),
         sa.Column("full_name", sa.String(length=160), nullable=True),
         sa.Column("extension", sa.String(length=40), nullable=True),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column("status", sa.String(length=16), server_default=sa.text("'PENDING'"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("clock_timestamp()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("clock_timestamp()"), nullable=False),
+        sa.Column(
+            "is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False
+        ),
+        sa.Column(
+            "status",
+            sa.String(length=16),
+            server_default=sa.text("'PENDING'"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("clock_timestamp()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("clock_timestamp()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_users_email", "users", ["email"], unique=True)
 
     op.create_table(
         "user_sessions",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("token_id", sa.String(length=64), nullable=False),
         sa.Column("user_agent", sa.String(length=256), nullable=True),
         sa.Column("ip_address", sa.String(length=64), nullable=True),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_seen_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("clock_timestamp()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("clock_timestamp()"), nullable=False),
+        sa.Column(
+            "last_seen_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("clock_timestamp()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("clock_timestamp()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -134,7 +185,9 @@ def upgrade() -> None:
 
     op.create_table(
         "audit_log",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("ts", sa.DateTime(timezone=True), nullable=True),
         sa.Column("actor_id", sa.Uuid(), nullable=True),
         sa.Column("actor_role", sa.String(length=64), nullable=True),
@@ -151,15 +204,24 @@ def upgrade() -> None:
 
     op.create_table(
         "outbox",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("aggregate_type", sa.String(length=64), nullable=True),
         sa.Column("aggregate_id", sa.String(length=64), nullable=True),
         sa.Column("channel", sa.String(length=96), nullable=True),
         sa.Column("event_type", sa.String(length=96), nullable=True),
         sa.Column("payload", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("dispatched_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("attempts", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "attempts", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
 

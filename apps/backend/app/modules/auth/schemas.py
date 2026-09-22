@@ -4,9 +4,11 @@ Rule R7 - `UserPublic` never carries hashes or PINs; only the fields the
 dashboard shows.  `status` mirrors the approval lifecycle (PENDING/APPROVED/
 REJECTED); `permissions` is derived from the user's roles by the service layer.
 """
+
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from pydantic import Field
 
@@ -69,3 +71,13 @@ class UpdateProfileRequest(APIBaseModel):
     full_name: str | None = Field(default=None, max_length=160)
     password: str | None = Field(default=None, min_length=6, max_length=255)
     collaborator_pin: str | None = Field(default=None, min_length=4, max_length=4)
+
+
+class UserSessionDTO(APIBaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    token_id: str
+    user_agent: str | None = None
+    ip_address: str | None = None
+    last_seen_at: datetime | None = None
+    revoked_at: datetime | None = None

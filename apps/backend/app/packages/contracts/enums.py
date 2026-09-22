@@ -1,4 +1,5 @@
 """Shared domain enums used across control-plane modules."""
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -124,6 +125,23 @@ class CallStatus(StrEnum):
     TRANSFERRED = "transferred"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class TransferStatus(StrEnum):
+    """Lifecycle of a transfer (apps/TalkFlow.md section 11.5)."""
+
+    NOT_APPLICABLE = "not_applicable"
+    INITIATED = "initiated"
+    RINGING_VERIFIER = "ringing_verifier"
+    BRIDGED = "bridged"
+    COMPLETED = "completed"
+    FAILED_NO_VERIFIER = "failed_no_verifier"
+    FAILED_TIMEOUT = "failed_timeout"
+    FAILED_REJECTED = "failed_rejected"
+    FAILED_TECHNICAL = "failed_technical"
+    RETRY_SCHEDULED = "retry_scheduled"
+    FALLBACK_QUEUED = "fallback_queued"
+    CALLBACK_CREATED = "callback_created"
 
 
 class QualificationStatus(StrEnum):

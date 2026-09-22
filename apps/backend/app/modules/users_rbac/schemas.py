@@ -1,4 +1,5 @@
 """Admin / RBAC wire models (port of auth-service admin + roles schemas)."""
+
 from __future__ import annotations
 
 import uuid

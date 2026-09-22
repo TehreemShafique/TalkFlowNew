@@ -355,10 +355,11 @@ The most important new component. It is the only place in the codebase that spea
 ```python
 class VicidialClient:
     """One client per credential profile. Never share an account across roles."""
-    base_url: str              # https://<vicidial>/vicidial/non_agent_api.php
-    user: str                  # per-profile vicidial_users account
+
+    base_url: str  # https://<vicidial>/vicidial/non_agent_api.php
+    user: str  # per-profile vicidial_users account
     password: SecretStr
-    source: str                # <= 20 chars, appears in VICIdial's API log
+    source: str  # <= 20 chars, appears in VICIdial's API log
     timeout: float = 10.0
 ```
 
@@ -400,9 +401,9 @@ VICIdial returns HTTP 200 with a text body regardless of outcome. Every response
 
 ```python
 class VicidialOutcome(StrEnum):
-    SUCCESS = "SUCCESS"   # body starts with "SUCCESS:"
-    NOTICE  = "NOTICE"    # informational, operation may have partially applied
-    ERROR   = "ERROR"     # body starts with "ERROR:"
+    SUCCESS = "SUCCESS"  # body starts with "SUCCESS:"
+    NOTICE = "NOTICE"  # informational, operation may have partially applied
+    ERROR = "ERROR"  # body starts with "ERROR:"
 ```
 
 `NOTICE` is the dangerous case. `add_lead` can return `SUCCESS: add_lead LEAD HAS BEEN ADDED` followed by `NOTICE: add_lead NOT ADDED TO HOPPER, OUTSIDE OF LOCAL TIME` — the lead exists but will not be dialled. **The adapter parses every line, not just the first**, and surfaces notices as structured fields the control plane acts on.
@@ -496,12 +497,18 @@ Guards return **every** problem, not the first:
 ```python
 def can_start_campaign(c: CampaignSnapshot) -> list[ErrorCode]:
     problems = []
-    if not c.active_script_version_id: problems.append(E.CAMPAIGN_NO_ACTIVE_SCRIPT)
-    if not c.rule_set_version_id:      problems.append(E.CAMPAIGN_NO_RULE_SET)
-    if not c.vicidial_campaign_id:     problems.append(E.CAMPAIGN_NO_VICIDIAL_MAPPING)
-    if not c.vicidial_list_ids:        problems.append(E.CAMPAIGN_NO_LIST_MAPPING)
-    if not c.closer_in_group:          problems.append(E.CAMPAIGN_NO_VERIFIER_GROUP)
-    if not c.compliance_profile_id:    problems.append(E.CAMPAIGN_NO_COMPLIANCE_PROFILE)
+    if not c.active_script_version_id:
+        problems.append(E.CAMPAIGN_NO_ACTIVE_SCRIPT)
+    if not c.rule_set_version_id:
+        problems.append(E.CAMPAIGN_NO_RULE_SET)
+    if not c.vicidial_campaign_id:
+        problems.append(E.CAMPAIGN_NO_VICIDIAL_MAPPING)
+    if not c.vicidial_list_ids:
+        problems.append(E.CAMPAIGN_NO_LIST_MAPPING)
+    if not c.closer_in_group:
+        problems.append(E.CAMPAIGN_NO_VERIFIER_GROUP)
+    if not c.compliance_profile_id:
+        problems.append(E.CAMPAIGN_NO_COMPLIANCE_PROFILE)
     return problems
 ```
 

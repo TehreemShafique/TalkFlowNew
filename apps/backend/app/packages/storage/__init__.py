@@ -1,4 +1,5 @@
 """Storage provider factory."""
+
 from app.packages.storage.provider import (
     LocalStorageProvider,
     S3StorageProvider,

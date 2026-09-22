@@ -21,6 +21,7 @@ CAMPAIGN_NO_RULE_SET = "campaign.no_rule_set"
 CAMPAIGN_NO_COMPLIANCE_PROFILE = "campaign.no_compliance_profile"
 CAMPAIGN_NO_VERIFIER_GROUP = "campaign.no_verifier_group"
 CAMPAIGN_NO_LIST_MAPPING = "campaign.no_list_mapping"
+CAMPAIGN_NO_CALLER_IDS = "campaign.no_caller_ids"
 
 # Domain errors raised by the router/service.
 register_error("campaign.not_found", 404, "Campaign not found.")

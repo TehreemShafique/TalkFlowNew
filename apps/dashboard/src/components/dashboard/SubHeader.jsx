@@ -5,32 +5,38 @@ import { Download } from "lucide-react";
 
 export default function SubHeader({ onExportCalls, onExportSales }) {
   return (
-    <div className="flex items-center justify-between border-b border-neutral-200 bg-white px-6 py-4 transition-colors duration-200 dark:border-[#1a1a1a] dark:bg-[#0a0a0a]">
-      {/* Title */}
-      <h1 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
-        Smart Brains Dashboard
-      </h1>
+    <div className="flex flex-col gap-3 border-b border-neutral-200/60 bg-[#f8fafc]/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-[#141414] dark:bg-[#000000]">
+      {/* Title & Subtitle */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white flex items-center gap-2">
+          <span>Smart Brains</span>
+          <span className="text-[#0059DD] font-extrabold">Dashboard</span>
+        </h1>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
+          Real-time insights. Better decisions.
+        </p>
+      </div>
 
       {/* Action Buttons */}
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onExportCalls}
-          className="flex items-center gap-2 rounded-lg border border-neutral-300 bg-neutral-100 px-4 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:border-neutral-400 hover:bg-neutral-200 hover:text-neutral-950 active:scale-95 dark:border-[#2f2f2f] dark:bg-[#121212] dark:text-neutral-200 dark:hover:border-neutral-500 dark:hover:bg-[#1c1c1c] dark:hover:text-white"
+          className="flex items-center gap-2 rounded-xl border border-[#0059DD]/40 bg-white px-4 py-2 text-xs font-bold text-[#0059DD] shadow-2xs transition-all hover:bg-blue-50/60 active:scale-95 dark:border-[#0059DD]/60 dark:bg-[#000000] dark:text-[#0059DD] dark:hover:bg-blue-950/30"
         >
-          <Download className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
-          Export Calls
+          <Download className="h-4 w-4 text-[#0059DD]" />
+          <span>Export Calls</span>
         </button>
 
         <button
           type="button"
           onClick={onExportSales}
-          className="flex items-center gap-2 rounded-lg border border-neutral-300 bg-neutral-100 px-4 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:border-neutral-400 hover:bg-neutral-200 hover:text-neutral-950 active:scale-95 dark:border-[#2f2f2f] dark:bg-[#121212] dark:text-neutral-200 dark:hover:border-neutral-500 dark:hover:bg-[#1c1c1c] dark:hover:text-white"
+          className="flex items-center gap-2 rounded-xl bg-[#0059DD] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#0059DD]/20 transition-all hover:bg-[#004bbd] active:scale-95 dark:bg-[#0059DD] dark:hover:bg-[#004bbd]"
         >
-          <Download className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
-          Export XFERs/Sales
+          <Download className="h-4 w-4 text-white" />
+          <span>Export XFERs/Sales</span>
         </button>
       </div>
     </div>
   );
-}
+}

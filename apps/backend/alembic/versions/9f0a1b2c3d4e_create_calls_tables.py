@@ -54,6 +54,7 @@ Revision ID: 9f0a1b2c3d4e
 Revises: e5f6a7b8c9d0
 Create Date: 2026-09-18
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -116,8 +117,15 @@ _CALLS_COLUMNS = """
 # Columns shared between the legacy plain stub and the partitioned parent;
 # everything else takes its server default on copy.
 _CALLS_COPY = (
-    "id", "tenant_id", "started_at", "duration_seconds", "disposition",
-    "qualification_status", "disqualification_reason", "lead_id", "campaign_id",
+    "id",
+    "tenant_id",
+    "started_at",
+    "duration_seconds",
+    "disposition",
+    "qualification_status",
+    "disqualification_reason",
+    "lead_id",
+    "campaign_id",
     "verifier_id",
 )
 
@@ -157,9 +165,7 @@ def _drop_inbound_fks(bind, target: str) -> None:
         {"tbl": target},
     ).all()
     for row in rows:
-        bind.execute(
-            sa.text(f'ALTER TABLE {row.tbl} DROP CONSTRAINT "{row.name}"')
-        )
+        bind.execute(sa.text(f'ALTER TABLE {row.tbl} DROP CONSTRAINT "{row.name}"'))
 
 
 def _create_partitions(bind, parent: str, months=_MONTHS, default: bool = True) -> None:
@@ -167,7 +173,9 @@ def _create_partitions(bind, parent: str, months=_MONTHS, default: bool = True) 
         name = f"{parent}_default"
         if not _table_exists(bind, name):
             bind.execute(
-                sa.text(f"CREATE TABLE IF NOT EXISTS {name} PARTITION OF {parent} DEFAULT")
+                sa.text(
+                    f"CREATE TABLE IF NOT EXISTS {name} PARTITION OF {parent} DEFAULT"
+                )
             )
     for suffix, start, end in months:
         name = f"{parent}_monthly_{suffix}"
@@ -242,7 +250,11 @@ def upgrade() -> None:
         _drop_inbound_fks(bind, "calls")
         bind.execute(sa.text("ALTER TABLE calls RENAME TO calls_legacy"))
 
-        bind.execute(sa.text(f"CREATE TABLE calls ({_CALLS_COLUMNS}) PARTITION BY RANGE (started_at)"))
+        bind.execute(
+            sa.text(
+                f"CREATE TABLE calls ({_CALLS_COLUMNS}) PARTITION BY RANGE (started_at)"
+            )
+        )
         _create_partitions(bind, "calls")
 
         copy_cols = ", ".join(_CALLS_COPY)
@@ -255,7 +267,11 @@ def upgrade() -> None:
         )
         bind.execute(sa.text("DROP TABLE calls_legacy"))
     elif not _table_exists(bind, "calls"):
-        bind.execute(sa.text(f"CREATE TABLE calls ({_CALLS_COLUMNS}) PARTITION BY RANGE (started_at)"))
+        bind.execute(
+            sa.text(
+                f"CREATE TABLE calls ({_CALLS_COLUMNS}) PARTITION BY RANGE (started_at)"
+            )
+        )
         _create_partitions(bind, "calls")
 
     _ensure_calls_indexes(bind)
@@ -305,18 +321,24 @@ def upgrade() -> None:
     existing = {ix["name"] for ix in sa.inspect(bind).get_indexes("transcript_turns")}
     if "ix_transcript_turns_call_seq" not in existing:
         bind.execute(
-            sa.text("CREATE INDEX IF NOT EXISTS ix_transcript_turns_call_seq "
-                    "ON transcript_turns (call_id, seq)")
+            sa.text(
+                "CREATE INDEX IF NOT EXISTS ix_transcript_turns_call_seq "
+                "ON transcript_turns (call_id, seq)"
+            )
         )
     if "uq_transcript_turns_call_seq_created" not in existing:
         bind.execute(
-            sa.text("CREATE UNIQUE INDEX IF NOT EXISTS uq_transcript_turns_call_seq_created "
-                    "ON transcript_turns (call_id, seq, created_at)")
+            sa.text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_transcript_turns_call_seq_created "
+                "ON transcript_turns (call_id, seq, created_at)"
+            )
         )
     if "ix_transcript_turns_call_start_ms" not in existing:
         bind.execute(
-            sa.text("CREATE INDEX IF NOT EXISTS ix_transcript_turns_call_start_ms "
-                    "ON transcript_turns (call_id, start_ts_ms)")
+            sa.text(
+                "CREATE INDEX IF NOT EXISTS ix_transcript_turns_call_start_ms "
+                "ON transcript_turns (call_id, start_ts_ms)"
+            )
         )
 
     # ---------------- call_events (partitioned by event_ts) ----------------
@@ -341,32 +363,48 @@ def upgrade() -> None:
     existing = {ix["name"] for ix in sa.inspect(bind).get_indexes("call_events")}
     if "ix_call_events_call_id_event_ts" not in existing:
         bind.execute(
-            sa.text("CREATE INDEX IF NOT EXISTS ix_call_events_call_id_event_ts "
-                    "ON call_events (call_id, event_ts)")
+            sa.text(
+                "CREATE INDEX IF NOT EXISTS ix_call_events_call_id_event_ts "
+                "ON call_events (call_id, event_ts)"
+            )
         )
     if "uq_call_events_call_external_ts" not in existing:
         bind.execute(
-            sa.text("CREATE UNIQUE INDEX IF NOT EXISTS uq_call_events_call_external_ts "
-                    "ON call_events (call_id, external_event_id, event_ts)")
+            sa.text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_call_events_call_external_ts "
+                "ON call_events (call_id, external_event_id, event_ts)"
+            )
         )
 
     # ---------------- call_qualification_fields (plain) --------------------
     if not _table_exists(bind, "call_qualification_fields"):
         op.create_table(
             "call_qualification_fields",
-            sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+            sa.Column(
+                "id",
+                sa.Uuid(),
+                server_default=sa.text("gen_random_uuid()"),
+                nullable=False,
+            ),
             sa.Column("call_id", sa.Uuid(), nullable=False),
             sa.Column("field", sa.String(length=64), nullable=False),
             sa.Column("label", sa.String(length=255), nullable=True),
             sa.Column("value", _JSONB, nullable=True),
-            sa.Column("captured_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+            sa.Column(
+                "captured_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=True,
+            ),
             sa.Column("transcript_ref", sa.String(length=128), nullable=True),
             sa.Column("confidence", sa.Float(), nullable=True),
             sa.PrimaryKeyConstraint("id"),
         )
         bind.execute(
-            sa.text("CREATE INDEX ix_call_qualification_fields_call_id_field "
-                    "ON call_qualification_fields (call_id, field)")
+            sa.text(
+                "CREATE INDEX ix_call_qualification_fields_call_id_field "
+                "ON call_qualification_fields (call_id, field)"
+            )
         )
 
     # ---------------- call_performance (plain) -----------------------------
@@ -393,7 +431,12 @@ def upgrade() -> None:
     if not _table_exists(bind, "call_node_path"):
         op.create_table(
             "call_node_path",
-            sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+            sa.Column(
+                "id",
+                sa.Uuid(),
+                server_default=sa.text("gen_random_uuid()"),
+                nullable=False,
+            ),
             sa.Column("call_id", sa.Uuid(), nullable=False),
             sa.Column("seq", sa.Integer(), nullable=True),
             sa.Column("node_id", sa.String(length=64), nullable=True),
@@ -406,7 +449,9 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id"),
         )
         bind.execute(
-            sa.text("CREATE INDEX ix_call_node_path_call_id_seq ON call_node_path (call_id, seq)")
+            sa.text(
+                "CREATE INDEX ix_call_node_path_call_id_seq ON call_node_path (call_id, seq)"
+            )
         )
 
 

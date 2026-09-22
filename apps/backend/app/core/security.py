@@ -8,6 +8,7 @@ Password/pin hashing uses Argon2id via ``argon2-cffi`` (the control plane's
 single hashing implementation - port of services/auth-service, which used
 bcrypt, is intentionally NOT carried over; see TASK section 2.1).
 """
+
 from __future__ import annotations
 
 import re
@@ -43,14 +44,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password/PIN against its Argon2id hash.  Never raises."""
     try:
         return _PASSWORD_HASHER.verify(hashed_password, plain_password)
-    except (VerifyMismatchError, InvalidHashError, AttributeError, TypeError, ValueError):
+    except (
+        VerifyMismatchError,
+        InvalidHashError,
+        AttributeError,
+        TypeError,
+        ValueError,
+    ):
         return False
 
 
 # ---------------------------------------------------------------------------
 # Access-token JWT (sub = email, jti = session id)
 # ---------------------------------------------------------------------------
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, str]:
+def create_access_token(
+    data: dict, expires_delta: timedelta | None = None
+) -> tuple[str, str]:
     """Mint a session JWT; returns ``(token, jti)`` (port of auth-service).
 
     ``data`` may already contain a ``jti`` (e.g. an admin kill-session); a
@@ -116,13 +125,17 @@ def create_signed_grant(
         "iat": now,
         "exp": now + timedelta(seconds=ttl_seconds),
     }
-    token = jwt.encode(payload, settings.jwt_access_secret, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(
+        payload, settings.jwt_access_secret, algorithm=settings.jwt_algorithm
+    )
     return token, jti
 
 
 def decode_signed_grant(token: str) -> dict:
     """Verify a signed capability grant."""
-    return jwt.decode(token, settings.jwt_access_secret, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(
+        token, settings.jwt_access_secret, algorithms=[settings.jwt_algorithm]
+    )
 
 
 # ---------------------------------------------------------------------------

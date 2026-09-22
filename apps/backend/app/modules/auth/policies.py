@@ -1,4 +1,5 @@
 """Login admission policy - a user may authenticate only when APPROVED."""
+
 from __future__ import annotations
 
 from app.packages.contracts.enums import UserStatus

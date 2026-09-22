@@ -14,6 +14,7 @@ from app.core.context import UserContext
 from app.core.permissions import PERM_CAMPAIGN_START, PERM_CAMPAIGN_VIEW
 from app.modules.campaigns.errors import (
     CAMPAIGN_NO_ACTIVE_SCRIPT,
+    CAMPAIGN_NO_CALLER_IDS,
     CAMPAIGN_NO_COMPLIANCE_PROFILE,
     CAMPAIGN_NO_LIST_MAPPING,
     CAMPAIGN_NO_RULE_SET,
@@ -42,14 +43,16 @@ class CampaignSnapshot:
     closer_in_group: str | None = None
     vicidial_campaign_id: str | None = None
     vicidial_list_ids: tuple[str, ...] = ()
+    caller_ids: tuple[str, ...] = ()
 
 
 def can_start_campaign(c: CampaignSnapshot) -> list[str]:
     """Return **every** unmet prerequisite code (empty list == dialable)."""
     problems: list[str] = []
-    if not c.active_script_version_id:
-        problems.append(CAMPAIGN_NO_ACTIVE_SCRIPT)
-    elif c.script_version_status is not None and c.script_version_status not in ("approved", "active"):
+    if not c.active_script_version_id or (
+        c.script_version_status is not None
+        and c.script_version_status not in ("approved", "active")
+    ):
         problems.append(CAMPAIGN_NO_ACTIVE_SCRIPT)
     if not c.rule_set_version_id:
         problems.append(CAMPAIGN_NO_RULE_SET)
@@ -59,6 +62,8 @@ def can_start_campaign(c: CampaignSnapshot) -> list[str]:
         problems.append(CAMPAIGN_NO_VERIFIER_GROUP)
     if not c.vicidial_campaign_id or not c.vicidial_list_ids:
         problems.append(CAMPAIGN_NO_LIST_MAPPING)
+    if not c.caller_ids:
+        problems.append(CAMPAIGN_NO_CALLER_IDS)
     return problems
 
 

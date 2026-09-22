@@ -22,6 +22,7 @@ stable, and re-sending one ``(call_id, external_event_id)`` is swallowed
 without an ``IntegrityError``.  **STEP 18** - a streaming partial transcript
 (``isFinal: false``) is ignored as a turn but still audited as a raw event.
 """
+
 from __future__ import annotations
 
 import json
@@ -113,7 +114,11 @@ def _mk_events(lead_id: uuid.UUID, campaign_id: uuid.UUID, *, n_turns=N_TURNS):
             ),
         )
     ]
-    nodes = [("n_greeting", "Greeting"), ("n_qual_a", "Qualification Part A"), ("n_qual_b", "Qualification Part B")]
+    nodes = [
+        ("n_greeting", "Greeting"),
+        ("n_qual_a", "Qualification Part A"),
+        ("n_qual_b", "Qualification Part B"),
+    ]
     for i in range(n_turns):
         node_id, node_name = nodes[i % len(nodes)]
         speaker = "bot" if i % 2 == 0 else "user"
@@ -124,7 +129,10 @@ def _mk_events(lead_id: uuid.UUID, campaign_id: uuid.UUID, *, n_turns=N_TURNS):
         )
         start_ms = i * 2500
         events.append(
-            ("talkflow.call.event.v1", ev(type="node_entered", nodeId=node_id, nodeName=node_name))
+            (
+                "talkflow.call.event.v1",
+                ev(type="node_entered", nodeId=node_id, nodeName=node_name),
+            )
         )
         events.append(
             (
@@ -229,7 +237,9 @@ async def test_replayed_event_stream_is_idempotent(seeded):
 
     async with seeded["factory"]() as db:
         assert (
-            await db.execute(select(func.count()).select_from(Call).where(Call.id == call_id))
+            await db.execute(
+                select(func.count()).select_from(Call).where(Call.id == call_id)
+            )
         ).scalar_one() == 1
         assert (
             await db.execute(
@@ -254,13 +264,13 @@ async def test_replayed_event_stream_is_idempotent(seeded):
         ).scalar_one() == 2
         assert (
             await db.execute(
-                select(func.count()).select_from(CallEvent).where(CallEvent.call_id == call_id)
+                select(func.count())
+                .select_from(CallEvent)
+                .where(CallEvent.call_id == call_id)
             )
         ).scalar_one() == len(events)
 
-        call = (
-            await db.execute(select(Call).where(Call.id == call_id))
-        ).scalar_one()
+        call = (await db.execute(select(Call).where(Call.id == call_id))).scalar_one()
         assert call.status == CallStatus.COMPLETED.value
         assert call.qualification_status == QualificationStatus.QUALIFIED.value
         assert call.vicidial_status == "RAXFER"
@@ -269,17 +279,25 @@ async def test_replayed_event_stream_is_idempotent(seeded):
         assert call.channel_id == channel_id
 
         performance = (
-            await db.execute(select(CallPerformance).where(CallPerformance.call_id == call_id))
+            await db.execute(
+                select(CallPerformance).where(CallPerformance.call_id == call_id)
+            )
         ).scalar_one()
         assert performance.vad_ms == 18
         assert performance.total_turn_ms == 690
         assert performance.turn_count == N_TURNS
 
         turns = (
-            await db.execute(
-                select(TranscriptTurn).where(TranscriptTurn.call_id == call_id).order_by(TranscriptTurn.seq)
+            (
+                await db.execute(
+                    select(TranscriptTurn)
+                    .where(TranscriptTurn.call_id == call_id)
+                    .order_by(TranscriptTurn.seq)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert [t.seq for t in turns] == list(range(1, N_TURNS + 1))
         assert all(t.tsv is not None for t in turns)
 
@@ -294,17 +312,25 @@ async def test_closed_before_transcripts_never_reopens_or_rewinds(client, seeded
     handler = CallIngestHandler()
 
     opened = next(ev for topic, ev in events if topic == "talkflow.call.opened.v1")
-    transcript_events = [ev for topic, ev in events if topic == "talkflow.call.transcript.v1"]
+    transcript_events = [
+        ev for topic, ev in events if topic == "talkflow.call.transcript.v1"
+    ]
     node_events = [ev for topic, ev in events if topic == "talkflow.call.event.v1"]
     field_events = [ev for topic, ev in events if topic == "talkflow.call.field.v1"]
-    closed_event = next(ev for topic, ev in events if topic == "talkflow.call.closed.v1")
+    closed_event = next(
+        ev for topic, ev in events if topic == "talkflow.call.closed.v1"
+    )
     closed_ts = datetime.fromisoformat(closed_event["eventTs"])
 
     # 1. opened, then closed immediately (before any transcript / node event).
-    await _ingest(handler, seeded["factory"], [
-        ("talkflow.call.opened.v1", opened),
-        ("talkflow.call.closed.v1", closed_event),
-    ])
+    await _ingest(
+        handler,
+        seeded["factory"],
+        [
+            ("talkflow.call.opened.v1", opened),
+            ("talkflow.call.closed.v1", closed_event),
+        ],
+    )
 
     async with seeded["factory"]() as db:
         call = (await db.execute(select(Call).where(Call.id == call_id))).scalar_one()
@@ -322,9 +348,11 @@ async def test_closed_before_transcripts_never_reopens_or_rewinds(client, seeded
     await _ingest(handler, seeded["factory"], late)
 
     # 3. A replayed closed with an EARLIER eventTs (rewind attempt).
-    rewind = dict(closed_event, externalEventId=f"{call_id}-rewind", eventTs=(
-        closed_ts - timedelta(seconds=30)
-    ).isoformat())
+    rewind = dict(
+        closed_event,
+        externalEventId=f"{call_id}-rewind",
+        eventTs=(closed_ts - timedelta(seconds=30)).isoformat(),
+    )
     await _ingest(handler, seeded["factory"], [("talkflow.call.closed.v1", rewind)])
 
     async with seeded["factory"]() as db:
@@ -372,23 +400,33 @@ async def test_duplicate_external_event_id_is_deduped(seeded):
     call_id, _, events = _mk_events(lead_id, campaign_id)
     handler = CallIngestHandler()
 
-    await _ingest(handler, seeded["factory"], [("talkflow.call.opened.v1", events[0][1])])
+    await _ingest(
+        handler, seeded["factory"], [("talkflow.call.opened.v1", events[0][1])]
+    )
 
     # Two transcript messages sharing ONE external_event_id - the second must die.
     base = dict(events[2][1])  # a transcript event envelope
     first = dict(base, text="hello", externalEventId="dup-1")
     second = dict(base, text="world", externalEventId="dup-1")
-    await _ingest(handler, seeded["factory"], [
-        ("talkflow.call.transcript.v1", first),
-        ("talkflow.call.transcript.v1", second),
-    ])
+    await _ingest(
+        handler,
+        seeded["factory"],
+        [
+            ("talkflow.call.transcript.v1", first),
+            ("talkflow.call.transcript.v1", second),
+        ],
+    )
 
     async with seeded["factory"]() as db:
         turns = (
-            await db.execute(
-                select(TranscriptTurn).where(TranscriptTurn.call_id == call_id)
+            (
+                await db.execute(
+                    select(TranscriptTurn).where(TranscriptTurn.call_id == call_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(turns) == 1
         assert turns[0].text == "hello"
         assert (
@@ -446,7 +484,9 @@ async def test_event_for_unknown_call_raises_wait_for_open(seeded):
             await handler.handle_topic(db, "talkflow.call.event.v1", event)
         # nothing persisted for a call that never opened
         assert (
-            await db.execute(select(func.count()).select_from(Call).where(Call.id == ghost_call))
+            await db.execute(
+                select(func.count()).select_from(Call).where(Call.id == ghost_call)
+            )
         ).scalar_one() == 0
 
 
@@ -462,16 +502,24 @@ async def test_live_snapshot_redis_lifecycle(seeded):
     redis_client = get_redis()
     node_entered = next(ev for topic, ev in events if topic == "talkflow.call.event.v1")
     media_field = next(ev for topic, ev in events if topic == "talkflow.call.field.v1")
-    closed_event = next(ev for topic, ev in events if topic == "talkflow.call.closed.v1")
-    opened_event = next(ev for topic, ev in events if topic == "talkflow.call.opened.v1")
+    closed_event = next(
+        ev for topic, ev in events if topic == "talkflow.call.closed.v1"
+    )
+    opened_event = next(
+        ev for topic, ev in events if topic == "talkflow.call.opened.v1"
+    )
 
     # open -> snapshot + index
-    await _ingest(handler, seeded["factory"], [("talkflow.call.opened.v1", opened_event)])
+    await _ingest(
+        handler, seeded["factory"], [("talkflow.call.opened.v1", opened_event)]
+    )
     assert await redis_client.exists(LIVE_SNAPSHOT_KEY.format(call_id)) == 1
     assert await redis_client.sismember(LIVE_INDEX_KEY, str(call_id)) == 1
 
     # node entered -> nodeName present in snapshot
-    await _ingest(handler, seeded["factory"], [("talkflow.call.event.v1", node_entered)])
+    await _ingest(
+        handler, seeded["factory"], [("talkflow.call.event.v1", node_entered)]
+    )
     snapshot = json.loads(await redis_client.get(LIVE_SNAPSHOT_KEY.format(call_id)))
     assert snapshot["nodeName"] == "Greeting"
 
@@ -481,7 +529,9 @@ async def test_live_snapshot_redis_lifecycle(seeded):
     assert snapshot["qualificationStatus"] == QualificationStatus.INCOMPLETE.value
 
     # closed -> removed from index and snapshot
-    await _ingest(handler, seeded["factory"], [("talkflow.call.closed.v1", closed_event)])
+    await _ingest(
+        handler, seeded["factory"], [("talkflow.call.closed.v1", closed_event)]
+    )
     assert await redis_client.exists(LIVE_SNAPSHOT_KEY.format(call_id)) == 0
     assert await redis_client.sismember(LIVE_INDEX_KEY, str(call_id)) == 0
 
@@ -528,7 +578,9 @@ async def test_out_of_order_events(seeded):
     await _ingest(handler, seeded["factory"], [closed])
 
     async with seeded["factory"]() as db:
-        call = (await db.execute(select(Call).where(Call.id == FIXTURE_CALL_ID))).scalar_one()
+        call = (
+            await db.execute(select(Call).where(Call.id == FIXTURE_CALL_ID))
+        ).scalar_one()
         assert call.status == CallStatus.COMPLETED.value
         assert call.ended_at == datetime.fromisoformat(closed[1]["eventTs"])
 
@@ -536,7 +588,9 @@ async def test_out_of_order_events(seeded):
     await _ingest(handler, seeded["factory"], events[1:-1])
 
     async with seeded["factory"]() as db:
-        call = (await db.execute(select(Call).where(Call.id == FIXTURE_CALL_ID))).scalar_one()
+        call = (
+            await db.execute(select(Call).where(Call.id == FIXTURE_CALL_ID))
+        ).scalar_one()
         # Terminal is terminal: nothing reopens it, ended_at is untouched.
         assert call.status == CallStatus.COMPLETED.value
         assert call.ended_at == datetime.fromisoformat(closed[1]["eventTs"])
@@ -561,10 +615,14 @@ async def test_deduplication_on_external_event_id(seeded):
     # Re-send the SAME opened event (identical call_id + externalEventId) and
     # one transcript event: both must be swallowed, never surface as IntegrityError.
     opened = events[0][1]
-    await _ingest(handler, seeded["factory"], [
-        ("talkflow.call.opened.v1", dict(opened)),
-        ("talkflow.call.transcript.v1", dict(events[2][1])),
-    ])
+    await _ingest(
+        handler,
+        seeded["factory"],
+        [
+            ("talkflow.call.opened.v1", dict(opened)),
+            ("talkflow.call.transcript.v1", dict(events[2][1])),
+        ],
+    )
 
     async with seeded["factory"]() as db:
         assert (
@@ -599,10 +657,14 @@ async def test_streaming_partial_transcript_is_not_persisted(seeded):
     partial = dict(
         base,
         externalEventId=f"partial-{uuid.uuid4()}",
-        eventTs=(datetime.fromisoformat(base["eventTs"]) + timedelta(seconds=1)).isoformat(),
+        eventTs=(
+            datetime.fromisoformat(base["eventTs"]) + timedelta(seconds=1)
+        ).isoformat(),
         isFinal=False,
     )
-    await _ingest(handler, seeded["factory"], [("talkflow.call.transcript.v1", partial)])
+    await _ingest(
+        handler, seeded["factory"], [("talkflow.call.transcript.v1", partial)]
+    )
 
     async with seeded["factory"]() as db:
         assert (

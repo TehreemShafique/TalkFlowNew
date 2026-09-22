@@ -4,6 +4,7 @@ Every state-changing operation writes an ``audit_log`` row in the same
 transaction (blueprint section 10) and clears the Redis role cache so live
 sessions pick up the new permissions immediately.
 """
+
 from __future__ import annotations
 
 import uuid

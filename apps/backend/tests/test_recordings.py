@@ -9,6 +9,7 @@ Acceptance criteria covered here:
 * POST /recordings/{id}/qa-audit persists the scorecard and reflects it,
 * permission gating is enforced (hide-on-404 for missing permissions).
 """
+
 from __future__ import annotations
 
 import uuid

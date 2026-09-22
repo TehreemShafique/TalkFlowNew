@@ -1,4 +1,5 @@
 """Shared API contract packages."""
+
 from app.packages.contracts.base import (
     APIBaseModel,
     DataResponse,
@@ -9,8 +10,10 @@ from app.packages.contracts.base import (
     camelize,
 )
 from app.packages.contracts.enums import AuditResult, RecordingStatus, StorageProvider
+from app.packages.contracts.version import CONTRACT_VERSION
 
 __all__ = [
+    "CONTRACT_VERSION",
     "APIBaseModel",
     "AuditResult",
     "DataResponse",

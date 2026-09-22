@@ -1,4 +1,5 @@
 """Registered error codes for the auth module (Rule R2)."""
+
 from __future__ import annotations
 
 from app.packages.contracts.errors import (
@@ -9,9 +10,19 @@ from app.packages.contracts.errors import (
 )
 
 register_error("auth.invalid_credentials", 401, "Invalid email or password.")
-register_error("auth.account_pending", 403, "Your account is awaiting administrator approval.")
-register_error("auth.account_rejected", 403, "Your account request was rejected. Please contact an administrator.")
-register_error("auth.account_disabled", 403, "Account is disabled. Please contact an administrator.")
+register_error(
+    "auth.account_pending", 403, "Your account is awaiting administrator approval."
+)
+register_error(
+    "auth.account_rejected",
+    403,
+    "Your account request was rejected. Please contact an administrator.",
+)
+register_error(
+    "auth.account_disabled",
+    403,
+    "Account is disabled. Please contact an administrator.",
+)
 register_error("auth.email_conflict", 409, "User with this email already exists.")
 
 

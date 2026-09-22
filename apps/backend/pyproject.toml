@@ -38,3 +38,46 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+
+[tool.importlinter]
+# grimp 3.x discovers each root package independently; list the top-level
+# package plus each of its subpackages so the full app graph is built.
+root_packages = ["app", "app.modules", "app.packages"]
+
+[[tool.importlinter.contracts]]
+name = "core-does-not-depend-on-modules"
+type = "forbidden"
+source_modules = ["app.core"]
+forbidden_modules = ["app.modules"]
+broken_contract_guidance = """
+app.core is the bottom shared layer. Modules may depend on core, never the reverse
+(Rule R2). Push shared logic that modules need into app.core or app.packages and
+have modules consume it from there.
+"""
+
+[[tool.importlinter.contracts]]
+name = "packages-do-not-depend-on-modules"
+type = "forbidden"
+source_modules = ["app.packages.*"]
+forbidden_modules = ["app.modules"]
+broken_contract_guidance = """
+app.packages sits below app.modules. Shared read-only table projections belong in
+app.packages.db.models (Rule R3); a package must never reach up into a module.
+"""
+
+[[tool.importlinter.contracts]]
+name = "modules-are-independent"
+type = "independence"
+modules = ["app.modules.*"]
+ignore_imports = [
+    # users_rbac (RBAC admin) reuses the identity module's public serialize_user
+    # helper and UserPublic DTO instead of duplicating them.
+    "app.modules.users_rbac.router -> app.modules.auth.service",
+    "app.modules.users_rbac.router -> app.modules.auth.schemas",
+]
+broken_contract_guidance = """
+Modules own their repositories and domain and must not reach into another module
+(Rule R3). Cross-module reads go through shared projections in app.packages.db.models;
+shared behavior belongs in app.core or app.packages. Add an edge to ignore_imports
+only with an explicit architectural justification.
+"""

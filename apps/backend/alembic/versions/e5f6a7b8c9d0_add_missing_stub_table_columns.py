@@ -4,6 +4,7 @@ Revision ID: e5f6a7b8c9d0
 Revises: 8e9f0a1b2c3d
 Create Date: 2026-09-17
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -13,13 +14,20 @@ down_revision: str | None = "8e9f0a1b2c3d"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+
 def upgrade() -> None:
     # calls columns
-    op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;")
+    op.execute(
+        "ALTER TABLE calls ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;"
+    )
     op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS duration_seconds INTEGER;")
     op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition VARCHAR(32);")
-    op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS qualification_status VARCHAR(32);")
-    op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS disqualification_reason VARCHAR(64);")
+    op.execute(
+        "ALTER TABLE calls ADD COLUMN IF NOT EXISTS qualification_status VARCHAR(32);"
+    )
+    op.execute(
+        "ALTER TABLE calls ADD COLUMN IF NOT EXISTS disqualification_reason VARCHAR(64);"
+    )
     op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS lead_id UUID;")
     op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS campaign_id UUID;")
     op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS verifier_id UUID;")
@@ -27,10 +35,13 @@ def upgrade() -> None:
     # leads columns
     op.execute("ALTER TABLE leads ADD COLUMN IF NOT EXISTS first_name VARCHAR(120);")
     op.execute("ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_name VARCHAR(120);")
-    op.execute("ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_normalized VARCHAR(32);")
+    op.execute(
+        "ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_normalized VARCHAR(32);"
+    )
 
     # campaigns columns
     op.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS name VARCHAR(160);")
+
 
 def downgrade() -> None:
     op.execute("ALTER TABLE campaigns DROP COLUMN IF EXISTS name;")

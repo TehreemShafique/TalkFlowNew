@@ -5,6 +5,7 @@ authentication (core.dependencies.require_permissions) and serialization
 (users_rbac RolePublic) agree on one matrix.  Permissions are *derived* from a
 user's role names - they are never stored in the DB.
 """
+
 from __future__ import annotations
 
 # User administration (users_rbac).
@@ -57,6 +58,14 @@ PERM_SCRIPT_VIEW = "script.view"
 PERM_SCRIPT_EDIT = "script.edit"
 PERM_SCRIPT_APPROVE = "script.approve"
 
+# Verifier workspace & transfers.
+PERM_VERIFIER_WORKSPACE = "verifier.workspace"
+PERM_TRANSFER_VIEW = "transfer.view"
+
+# Analytics (modules/analytics; Reporting User lands here per TalkFlow.md §16).
+PERM_ANALYTICS_VIEW = "analytics.view"
+PERM_REPORTING_VIEW = PERM_ANALYTICS_VIEW
+
 _ALL_PERMISSIONS: tuple[str, ...] = (
     PERM_USER_VIEW,
     PERM_USER_APPROVE,
@@ -86,6 +95,9 @@ _ALL_PERMISSIONS: tuple[str, ...] = (
     PERM_SCRIPT_VIEW,
     PERM_SCRIPT_EDIT,
     PERM_SCRIPT_APPROVE,
+    PERM_VERIFIER_WORKSPACE,
+    PERM_TRANSFER_VIEW,
+    PERM_ANALYTICS_VIEW,
 )
 
 ADMIN_ROLE_NAMES: tuple[str, ...] = ("MASTER_ADMIN", "DEVOPS_IT")
@@ -95,6 +107,7 @@ APPROVABLE_ROLE_NAMES: tuple[str, ...] = (
     "DEVOPS_IT",
     "CAMPAIGN_MANAGER",
     "QA",
+    "VERIFIER",
     "VIEWER",
 )
 
@@ -129,6 +142,9 @@ ROLE_PERMISSIONS: dict[str, tuple[str, ...]] = {
         PERM_SCRIPT_VIEW,
         PERM_SCRIPT_EDIT,
         PERM_SCRIPT_APPROVE,
+        PERM_VERIFIER_WORKSPACE,
+        PERM_TRANSFER_VIEW,
+        PERM_ANALYTICS_VIEW,
     ),
     "CAMPAIGN_MANAGER": (
         PERM_RECORDING_VIEW,
@@ -149,6 +165,15 @@ ROLE_PERMISSIONS: dict[str, tuple[str, ...]] = {
         PERM_SCRIPT_VIEW,
         PERM_SCRIPT_EDIT,
         PERM_SCRIPT_APPROVE,
+        PERM_TRANSFER_VIEW,
+        PERM_ANALYTICS_VIEW,
+    ),
+    "VERIFIER": (
+        PERM_VERIFIER_WORKSPACE,
+        PERM_CALL_VIEW,
+        PERM_CALL_DISPOSITION,
+        PERM_RECORDING_VIEW,
+        PERM_RECORDING_PLAY,
     ),
     "QA": (
         PERM_RECORDING_VIEW,
@@ -159,6 +184,7 @@ ROLE_PERMISSIONS: dict[str, tuple[str, ...]] = {
         PERM_CALL_VIEW,
         PERM_SUPPRESSION_VIEW,
         PERM_SCRIPT_VIEW,
+        PERM_ANALYTICS_VIEW,
     ),
     "VIEWER": (
         PERM_RECORDING_VIEW,
@@ -175,6 +201,7 @@ ROLE_PERMISSIONS: dict[str, tuple[str, ...]] = {
         PERM_EXPORT_VIEW,
         PERM_EXPORT_DOWNLOAD,
         PERM_SCRIPT_VIEW,
+        PERM_ANALYTICS_VIEW,
     ),
 }
 

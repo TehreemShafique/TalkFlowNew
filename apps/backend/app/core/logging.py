@@ -1,4 +1,5 @@
 """Structured logging via structlog with request trace-ids."""
+
 from __future__ import annotations
 
 import logging

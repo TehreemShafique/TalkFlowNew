@@ -89,13 +89,22 @@ def test_classify_row_priorities_suppression_first():
     assert verdict == RowVerdict("suppressed", "suppressed_dnc")
 
     assert classify_row(
-        "12025550100", seen_in_file={"12025550100"}, existing_phones=set(), suppressed_phones=set()
+        "12025550100",
+        seen_in_file={"12025550100"},
+        existing_phones=set(),
+        suppressed_phones=set(),
     ) == RowVerdict("duplicate", "duplicate_in_file")
     assert classify_row(
-        "18505554586", seen_in_file=set(), existing_phones={"18505554586"}, suppressed_phones=set()
+        "18505554586",
+        seen_in_file=set(),
+        existing_phones={"18505554586"},
+        suppressed_phones=set(),
     ) == RowVerdict("duplicate", "duplicate_in_system")
     assert classify_row(
-        "14045550101", seen_in_file=set(), existing_phones=set(), suppressed_phones=set()
+        "14045550101",
+        seen_in_file=set(),
+        existing_phones=set(),
+        suppressed_phones=set(),
     ) == RowVerdict("valid", None)
 
 
@@ -116,7 +125,10 @@ def test_export_policy_and_masking():
     from app.core.context import UserContext
 
     admin = UserContext(
-        user_id=uuid.uuid4(), tenant_id=None, permissions={"lead.view"}, role="MASTER_ADMIN"
+        user_id=uuid.uuid4(),
+        tenant_id=None,
+        permissions={"lead.view"},
+        role="MASTER_ADMIN",
     )
     reporter = UserContext(
         user_id=uuid.uuid4(),
@@ -366,16 +378,16 @@ async def test_import_wizard_end_to_end(client, seeded):
 
         for event_type in ("lead.import.mapping_saved", "lead.import.committed"):
             event = await db.execute(
-                select(func.count()).select_from(outbox_table).where(
-                    outbox_table.c.event_type == event_type
-                )
+                select(func.count())
+                .select_from(outbox_table)
+                .where(outbox_table.c.event_type == event_type)
             )
             assert event.scalar_one() == 1
 
         audited = await db.execute(
-            select(func.count()).select_from(audit_log_table).where(
-                audit_log_table.c.action == "lead.import.commit"
-            )
+            select(func.count())
+            .select_from(audit_log_table)
+            .where(audit_log_table.c.action == "lead.import.commit")
         )
         assert audited.scalar_one() == 1
 
@@ -404,7 +416,9 @@ async def test_import_mapping_requires_phone_column(client, seeded):
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "lead.import_mapping_invalid"
 
-    resp = await client.post(f"/leads/import/{job_id}/commit", headers=seeded["headers"])
+    resp = await client.post(
+        f"/leads/import/{job_id}/commit", headers=seeded["headers"]
+    )
     assert resp.status_code == 409
     assert resp.json()["error"]["code"] == "lead.import_invalid_state"
 
@@ -476,16 +490,18 @@ async def test_suppression_add_duplicate_check_remove(client, seeded):
             ("suppression.removed", 1),
         ):
             sent = await db.execute(
-                select(func.count()).select_from(outbox_table).where(
+                select(func.count())
+                .select_from(outbox_table)
+                .where(
                     outbox_table.c.channel == SUPPRESSION_CHANNEL,
                     outbox_table.c.event_type == event_type,
                 )
             )
             assert sent.scalar_one() == count
         audited = await db.execute(
-            select(func.count()).select_from(audit_log_table).where(
-                audit_log_table.c.action == "suppression.remove"
-            )
+            select(func.count())
+            .select_from(audit_log_table)
+            .where(audit_log_table.c.action == "suppression.remove")
         )
         assert audited.scalar_one() == 1
 
@@ -534,7 +550,12 @@ async def test_suppression_import_csv(client, seeded):
         files={"file": ("dnc.csv", payload, "text/csv")},
     )
     assert replay.status_code == 201
-    assert replay.json()["data"] == {"total": 3, "added": 0, "duplicate": 1, "invalid": 2}
+    assert replay.json()["data"] == {
+        "total": 3,
+        "added": 0,
+        "duplicate": 1,
+        "invalid": 2,
+    }
 
 
 async def test_suppression_requires_permissions(client, seeded):
@@ -543,7 +564,9 @@ async def test_suppression_requires_permissions(client, seeded):
         ("post", "/suppression", {"json": {"phone": "404-555-0103"}}),
         ("delete", f"/suppression/{uuid.uuid4()}", {}),
     ):
-        resp = await getattr(client, method)(path, headers=seeded["viewer_headers"], **kwargs)
+        resp = await getattr(client, method)(
+            path, headers=seeded["viewer_headers"], **kwargs
+        )
         assert resp.status_code == 403
 
 
@@ -581,9 +604,9 @@ async def test_export_leads_create_download_and_audit(client, seeded):
         from app.packages.db.models import audit_log_table
 
         audited = await db.execute(
-            select(func.count()).select_from(audit_log_table).where(
-                audit_log_table.c.action == "export.download"
-            )
+            select(func.count())
+            .select_from(audit_log_table)
+            .where(audit_log_table.c.action == "export.download")
         )
         assert audited.scalar_one() == 1
 
@@ -594,9 +617,7 @@ async def test_export_masks_phone_for_reporting_user(client, seeded):
     assert created.status_code == 201
     job_id = created.json()["data"]["id"]
 
-    download = await client.get(
-        f"/exports/{job_id}/download", headers=headers
-    )
+    download = await client.get(f"/exports/{job_id}/download", headers=headers)
     assert download.status_code == 200
     assert "(850) ***-4586" in download.text
     assert "18505554586" not in download.text

@@ -5,14 +5,17 @@ the token + user as a bare object (the dashboard reads `.accessToken` at the
 top level), the session is carried in the HttpOnly ``access_token`` cookie, and
 GET/PATCH /me operate on the authenticated principal (Rule R5).
 """
+
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import require_auth
 from app.core.security import create_access_token, set_access_token_cookie
@@ -28,7 +31,9 @@ from app.modules.auth.schemas import (
     TokenResponse,
     UpdateProfileRequest,
     UserPublic,
+    UserSessionDTO,
 )
+from app.packages.contracts.base import DataResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -51,7 +56,9 @@ async def login(
     service.ensure_login_allowed(user)
     access_token = await service.issue_user_token(db, user, request, response)
     fresh = await get_user_by_email(db, user.email)
-    return TokenResponse(access_token=access_token, user=service.serialize_user(fresh or user))
+    return TokenResponse(
+        access_token=access_token, user=service.serialize_user(fresh or user)
+    )
 
 
 @router.post("/pin-login", response_model=TokenResponse)
@@ -67,10 +74,14 @@ async def pin_login(
     service.ensure_login_allowed(user)
     access_token = await service.issue_user_token(db, user, request, response)
     fresh = await get_user_by_email(db, user.email)
-    return TokenResponse(access_token=access_token, user=service.serialize_user(fresh or user))
+    return TokenResponse(
+        access_token=access_token, user=service.serialize_user(fresh or user)
+    )
 
 
-@router.post("/signup", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup", response_model=MessageResponse, status_code=status.HTTP_201_CREATED
+)
 async def signup(payload: SignupRequest, db: AsyncSession = Db):
     await service.signup_user(db, payload)
     return MessageResponse(
@@ -91,7 +102,7 @@ async def logout(
     if credentials and credentials.scheme.lower() == "bearer":
         token = credentials.credentials
     else:
-        token = request.cookies.get("access_token")
+        token = request.cookies.get(settings.cookie_name)
     # Always clear the cookie - the session ends even if the token already
     # expired (which would otherwise fail the auth dependency).
     await service.logout_user(db, token, response)
@@ -135,3 +146,50 @@ async def update_profile(
 
     await service.refresh_user_role_cache(db, fresh)
     return ProfileUpdateResponse(user=service.serialize_user(fresh))
+
+
+account_router = APIRouter(prefix="/account", tags=["account"])
+
+
+@router.get("/sessions", response_model=DataResponse[list[UserSessionDTO]])
+@account_router.get(
+    "/security/sessions", response_model=DataResponse[list[UserSessionDTO]]
+)
+async def list_security_sessions(
+    current_user=Auth,
+    db: AsyncSession = Db,
+):
+    """List active login sessions for the authenticated user."""
+    sessions = await service.list_active_sessions(db, current_user.user_id)
+    return DataResponse(
+        data=[
+            UserSessionDTO(
+                id=s.id,
+                user_id=s.user_id,
+                token_id=s.token_id,
+                user_agent=s.user_agent,
+                ip_address=s.ip_address,
+                last_seen_at=s.last_seen_at,
+                revoked_at=s.revoked_at,
+            )
+            for s in sessions
+        ]
+    )
+
+
+@router.post("/sessions/{session_id}/revoke", response_model=MessageResponse)
+@account_router.post(
+    "/security/sessions/{session_id}/revoke", response_model=MessageResponse
+)
+async def revoke_security_session(
+    session_id: uuid.UUID,
+    current_user=Auth,
+    db: AsyncSession = Db,
+):
+    """Revoke a target login session by ID."""
+    revoked = await service.revoke_user_session_by_id(
+        db, current_user.user_id, session_id
+    )
+    if not revoked:
+        return MessageResponse(message="Session already revoked or not found.")
+    return MessageResponse(message="Session revoked successfully.")

@@ -33,7 +33,13 @@ def _key(header: str) -> str:
 _PHONE_ALIASES = {"phone", "phonenumber", "number", "phonenum", "dial", "callnumber"}
 _REASON_ALIASES = {"reason", "dncreason", "reasoncode", "dncreasoncode"}
 _SOURCE_ALIASES = {"source", "sourceid"}
-_EXPIRES_ALIASES = {"expiresat", "expiration", "expirationdate", "validuntil", "validthrough"}
+_EXPIRES_ALIASES = {
+    "expiresat",
+    "expiration",
+    "expirationdate",
+    "validuntil",
+    "validthrough",
+}
 _EVIDENCE_ALIASES = {"evidence", "evidencereference", "reference"}
 
 
@@ -103,7 +109,9 @@ class SuppressionPolicy:
 
     @staticmethod
     def can_see_full_phone(user: UserContext) -> bool:
-        return PERM_PII_VIEW_FULL in user.permissions or PERM_LEAD_VIEW in user.permissions
+        return (
+            PERM_PII_VIEW_FULL in user.permissions or PERM_LEAD_VIEW in user.permissions
+        )
 
 
 def resolve_scope_constraints(user: UserContext) -> dict:

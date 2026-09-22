@@ -75,7 +75,9 @@ async def list_suppression(
 
 
 @router.post(
-    "", response_model=DataResponse[SuppressionEntryDTO], status_code=status.HTTP_201_CREATED
+    "",
+    response_model=DataResponse[SuppressionEntryDTO],
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_suppression(
     payload: SuppressionEntryCreate, actor: AddGate, db: DbSession
@@ -84,8 +86,6 @@ async def add_suppression(
 
 
 @router.delete("/{entry_id}", response_model=DataResponse[SuppressionEntryDTO])
-async def remove_suppression(
-    entry_id: uuid.UUID, actor: RemoveGate, db: DbSession
-):
+async def remove_suppression(entry_id: uuid.UUID, actor: RemoveGate, db: DbSession):
     """Soft-remove an active entry (keeps the audit trail + sync event)."""
     return await service.remove_entry(db, actor, entry_id)

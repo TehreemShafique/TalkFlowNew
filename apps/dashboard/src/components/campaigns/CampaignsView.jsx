@@ -116,7 +116,7 @@ export default function CampaignsView({ initialAction, onActionChange }) {
             <CampaignRoutingForm campaign={state.selectedCampaign} />
           )}
           {state.subRoute === "script" && (
-            <CampaignScriptBinding campaign={state.selectedCampaign} />
+            <CampaignScriptBinding campaign={state.selectedCampaign} onRefresh={state.fetchCampaigns} />
           )}
           {state.subRoute === "transfer" && (
             <CampaignTransferRules campaign={state.selectedCampaign} />

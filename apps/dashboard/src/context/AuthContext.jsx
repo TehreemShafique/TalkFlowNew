@@ -2,8 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import {
-  getAuthToken,
-  setAuthToken,
   clearAuthToken,
   getStoredUser,
   setStoredUser,
@@ -18,12 +16,6 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const token = getAuthToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       const storedUser = getStoredUser();
       if (storedUser) setUser(storedUser);
 
@@ -38,7 +30,7 @@ export function AuthProvider({ children }) {
           setUser(null);
         }
       } catch {
-        // Offline-tolerant: keep the stored profile when the API is unreachable.
+        // Offline-tolerant: keep stored profile if network transiently drops
       }
       setLoading(false);
     })();
@@ -73,7 +65,6 @@ export function AuthProvider({ children }) {
       }
 
       const data = await response.json();
-      setAuthToken(data.access_token);
       setStoredUser(data.user);
       setUser(data.user);
       return data.user;
@@ -129,7 +120,6 @@ export function AuthProvider({ children }) {
       }
 
       const data = await response.json();
-      setAuthToken(data.access_token);
       setStoredUser(data.user);
       setUser(data.user);
       return data.user;
@@ -139,13 +129,10 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    const token = getAuthToken();
-    if (token) {
-      try {
-        await apiFetch("/auth/logout", { method: "POST" });
-      } catch {
-        // Best-effort: revoke server-side, then always clear locally.
-      }
+    try {
+      await apiFetch("/auth/logout", { method: "POST" });
+    } catch {
+      // Best-effort: revoke server-side cookie, then clear local state.
     }
     clearAuthToken();
     setUser(null);

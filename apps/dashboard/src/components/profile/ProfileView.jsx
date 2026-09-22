@@ -14,7 +14,7 @@ import {
   Save,
 } from "lucide-react";
 import { useAuth } from "@/context";
-import { apiFetch, setAuthToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export default function ProfileView() {
   const { user, role, logout, refreshUser } = useAuth();
@@ -59,9 +59,6 @@ export default function ProfileView() {
         throw new Error(data.detail || "Failed to update profile. Please try again.");
       }
 
-      if (data.access_token) {
-        setAuthToken(data.access_token);
-      }
       await refreshUser();
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);

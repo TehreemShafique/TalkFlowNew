@@ -5,6 +5,7 @@ Port of services/auth-service/app/modules/auth/service.py + account/service.py
 Every mutating operation commits once at the end so the outbox event and the
 state change are one transaction (Rule R8).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -44,12 +45,11 @@ from app.packages.contracts.enums import UserStatus
 from app.packages.db.models import User, UserSession
 
 # Denied-login reason -> exception dispatch (deny by default via fallback).
-_LOGIN_FAILURES: dict[
-    str, type[AccountDisabledError | AccountRejectedError]
-] = {
+_LOGIN_FAILURES: dict[str, type[AccountDisabledError | AccountRejectedError]] = {
     "disabled": AccountDisabledError,
     "rejected": AccountRejectedError,
 }
+
 
 # ---------------------------------------------------------------------------
 # Authentication
@@ -170,7 +170,10 @@ async def update_user_profile(
     (which embeds the old email as ``sub``) stays valid.
     """
     email_changed = False
-    if payload.email is not None and payload.email.strip().lower() != user.email.lower():
+    if (
+        payload.email is not None
+        and payload.email.strip().lower() != user.email.lower()
+    ):
         new_email = payload.email.strip().lower()
         existing = await get_user_by_email(db, new_email)
         if existing is not None and existing.id != user.id:
@@ -186,7 +189,9 @@ async def update_user_profile(
 
     if payload.collaborator_pin is not None:
         user.collaborator_pin = (
-            hash_password(payload.collaborator_pin) if payload.collaborator_pin else None
+            hash_password(payload.collaborator_pin)
+            if payload.collaborator_pin
+            else None
         )
 
     await db.commit()
@@ -268,10 +273,31 @@ async def touch_session(db: AsyncSession, token_id: str) -> None:
         await db.commit()
 
 
-async def list_active_sessions(db: AsyncSession, user_id: uuid.UUID) -> list[UserSession]:
+async def list_active_sessions(
+    db: AsyncSession, user_id: uuid.UUID
+) -> list[UserSession]:
     result = await db.execute(
         select(UserSession)
         .where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
         .order_by(UserSession.last_seen_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def revoke_user_session_by_id(
+    db: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID
+) -> bool:
+    """Revoke a session by session UUID for a given user."""
+    result = await db.execute(
+        select(UserSession).where(
+            UserSession.id == session_id,
+            UserSession.user_id == user_id,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if session is not None and session.revoked_at is None:
+        session.revoked_at = datetime.now(UTC)
+        await blacklist_token(session.token_id)
+        await db.commit()
+        return True
+    return False

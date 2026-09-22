@@ -124,9 +124,7 @@ def _dto_from_row(
         consent=_consent_from_call(call),
         transfer=_transfer_from_call(
             call,
-            row.get("verifier_name")
-            if include_verifier
-            else None,
+            row.get("verifier_name") if include_verifier else None,
         ),
         qa_status=call.qa_status,
         qa_score=call.qa_score,
@@ -135,9 +133,7 @@ def _dto_from_row(
     )
 
 
-async def _load(
-    session: AsyncSession, user: UserContext, call_id: uuid.UUID
-) -> dict:
+async def _load(session: AsyncSession, user: UserContext, call_id: uuid.UUID) -> dict:
     row = await repo.get_call(
         session, call_id, policies.resolve_scope_constraints(user)
     )
@@ -230,9 +226,7 @@ async def list_live_calls(
     session: AsyncSession,
     user: UserContext,
 ) -> DataResponse[list[LiveCallDTO]]:
-    rows = await repo.list_live_calls(
-        session, policies.resolve_scope_constraints(user)
-    )
+    rows = await repo.list_live_calls(session, policies.resolve_scope_constraints(user))
     return DataResponse[list[LiveCallDTO]](
         data=[
             LiveCallDTO(
@@ -402,9 +396,9 @@ async def update_disposition(
     if disqual_reason:
         call.disqualification_reason = disqual_reason
 
-    call.vicidial_status = policies.to_vicidial_status(
-        payload.disposition
-    ) or call.vicidial_status
+    call.vicidial_status = (
+        policies.to_vicidial_status(payload.disposition) or call.vicidial_status
+    )
 
     await repo.save(session, call)
 

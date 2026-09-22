@@ -1,4 +1,5 @@
 """User-management event types + outbox writer (Rule R8)."""
+
 from __future__ import annotations
 
 from enum import StrEnum

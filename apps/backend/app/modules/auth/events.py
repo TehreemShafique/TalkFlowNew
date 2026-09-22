@@ -1,4 +1,5 @@
 """Auth event types + outbox writer (Rule R8 - event in the same transaction)."""
+
 from __future__ import annotations
 
 from enum import StrEnum

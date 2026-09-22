@@ -1,4 +1,5 @@
 """Application settings for the TalkFlow control plane."""
+
 from __future__ import annotations
 
 from functools import lru_cache

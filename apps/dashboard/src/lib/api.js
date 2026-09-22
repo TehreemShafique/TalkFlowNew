@@ -1,7 +1,6 @@
 "use client";
 
-const TOKEN_KEY = "talkflow_auth_token";
-const USER_KEY = "talkflow_auth_user";
+const USER_KEY = "app_user_data";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
@@ -10,21 +9,11 @@ export function apiUrl(path) {
   return path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
 }
 
-export function getAuthToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setAuthToken(token) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(TOKEN_KEY, token);
-  }
-}
-
 export function clearAuthToken() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem("talkflow_auth_token");
+    localStorage.removeItem("app_access_token");
   }
 }
 
@@ -41,28 +30,28 @@ export function getStoredUser() {
 
 export function setStoredUser(user) {
   if (typeof window !== "undefined") {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_KEY);
+    }
   }
 }
 
-// Global HTTP Interceptor wrapper for fetch API
+// Global HTTP Interceptor wrapper for fetch API (relies on HttpOnly cookies)
 export async function apiFetch(endpoint, options = {}) {
-  const token = getAuthToken();
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   const response = await fetch(apiUrl(endpoint), {
     ...options,
     headers,
+    credentials: "include",
   });
 
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     clearAuthToken();
     if (typeof window !== "undefined" && window.location.pathname !== "/login") {
       window.location.href = "/login";

@@ -12,7 +12,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from app.packages.contracts.base import APIBaseModel
 from app.packages.contracts.enums import ImportJobStatus, LeadStatus
@@ -29,6 +29,7 @@ class LeadDTO(APIBaseModel):
     """Wire model for one lead row (spec 11 ``Lead`` interface)."""
 
     id: uuid.UUID
+    external_key: str
     first_name: str | None = None
     last_name: str | None = None
     phone: str | None = None
@@ -72,7 +73,9 @@ class LeadCreate(APIBaseModel):
 
 
 class LeadUpdate(APIBaseModel):
-    """PATCH /leads/{id} payload - every field optional (partial update)."""
+    """PATCH /leads/{id} payload - extra fields forbidden (Step 27)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     first_name: str | None = Field(default=None, max_length=120)
     last_name: str | None = Field(default=None, max_length=120)
@@ -90,6 +93,15 @@ class LeadUpdate(APIBaseModel):
     custom_fields: dict[str, Any] | None = None
 
 
+LeadPatch = LeadUpdate
+
+
+class BulkAssignRequest(APIBaseModel):
+    lead_ids: list[uuid.UUID]
+    campaign_id: uuid.UUID | None = None
+    assigned_to: uuid.UUID | None = None
+
+
 class LeadListQuery(APIBaseModel):
     """Collection query parameters (all optional, whitelisted)."""
 
@@ -102,6 +114,24 @@ class LeadListQuery(APIBaseModel):
     source: str | None = Field(default=None, max_length=120)
     sort: str | None = None
     order: str | None = None
+
+
+class LeadBatchDTO(APIBaseModel):
+    """Wire model for one imported CSV lead file batch."""
+
+    id: uuid.UUID
+    file_name: str
+    status: ImportJobStatus = ImportJobStatus.COMPLETED
+    total_rows: int = 0
+    imported_rows: int = 0
+    columns: list[str] = Field(default_factory=list)
+    campaign_id: uuid.UUID | None = None
+    campaign_name: str | None = None
+    created_at: datetime
+
+
+class UpdateBatchCampaignRequest(APIBaseModel):
+    campaign_id: uuid.UUID | None = None
 
 
 # ---------------------------------------------------------------------------

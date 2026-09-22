@@ -30,6 +30,7 @@ import {
   Lock,
 } from "lucide-react";
 import { INITIAL_AUDIT_LOGS } from "@/data";
+import { apiFetch } from "@/lib/api";
 
 export default function AuditLogsView() {
   const [logs, setLogs] = useState(INITIAL_AUDIT_LOGS);
@@ -37,6 +38,33 @@ export default function AuditLogsView() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedSeverity, setSelectedSeverity] = useState("all");
   const [isLiveStream, setIsLiveStream] = useState(true);
+
+  // Load live audit logs from API (Step 51)
+  React.useEffect(() => {
+    async function loadAuditLogs() {
+      try {
+        const res = await apiFetch("/audit?pageSize=50");
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const formatted = res.data.map((item) => ({
+            id: item.id,
+            timestamp: item.ts ? new Date(item.ts).toLocaleString() : "Just now",
+            user: item.actorRole ? `${item.actorRole} (${item.actorId?.slice(0, 8)})` : item.actorId,
+            category: item.resourceType || "system",
+            eventType: item.action,
+            severity: item.result === "success" ? "info" : "warning",
+            targetResource: `${item.resourceType || "resource"}:${item.resourceId || ""}`,
+            ipAddress: item.ip || "127.0.0.1",
+            status: item.result === "success" ? "SUCCESS" : "FAILED",
+            details: JSON.stringify(item.metadata || {}),
+          }));
+          setLogs(formatted);
+        }
+      } catch (err) {
+        console.warn("Audit log fetch error, using local state:", err);
+      }
+    }
+    loadAuditLogs();
+  }, []);
 
   // Inspector Modal State
   const [selectedLog, setSelectedLog] = useState(null);

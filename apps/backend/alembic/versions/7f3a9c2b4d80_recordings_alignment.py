@@ -16,6 +16,7 @@ Revision ID: 7f3a9c2b4d80
 Revises: 136f1f2e55a9
 Create Date: 2026-09-17
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -39,7 +40,9 @@ def upgrade() -> None:
 
     op.create_table(
         "qa_reviews",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("call_id", sa.Uuid(), nullable=False),
         sa.Column("recording_id", sa.Uuid(), nullable=True),
         sa.Column("status", sa.String(length=32), nullable=True),
@@ -53,7 +56,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["call_id"], ["calls.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["recording_id"], ["call_recordings.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["recording_id"], ["call_recordings.id"], ondelete="SET NULL"
+        ),
         sa.ForeignKeyConstraint(["audited_by"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -62,7 +67,9 @@ def upgrade() -> None:
 
     op.create_table(
         "call_transcripts",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("call_id", sa.Uuid(), nullable=False),
         sa.Column("seq", sa.Integer(), nullable=False),
         sa.Column("speaker", sa.String(length=32), nullable=False),

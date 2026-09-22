@@ -1,4 +1,5 @@
 """Data access for auth (users, roles) - thin, module-scoped (Rule R3)."""
+
 from __future__ import annotations
 
 import uuid

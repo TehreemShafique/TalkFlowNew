@@ -40,7 +40,7 @@ from app.modules.campaigns.schemas import (
 )
 from app.packages.contracts.base import DataResponse, PagedMeta, PagedResponse
 from app.packages.contracts.enums import AuditResult, CampaignStatus
-from app.packages.db.models import Campaign
+from app.packages.db.models import Campaign, ScriptVersion
 
 logger = structlog.get_logger("campaigns.service")
 

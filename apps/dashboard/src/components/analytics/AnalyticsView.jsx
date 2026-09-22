@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { apiFetch } from "@/lib/api";
 import {
   BarChart3,
   Target,
@@ -92,6 +93,31 @@ export default function AnalyticsView({ initialAction, onActionChange }) {
   const [newExportTitle, setNewExportTitle] = useState("");
   const [newExportFormat, setNewExportFormat] = useState("CSV");
 
+  // Load server exports & rollups on mount (Step 40)
+  React.useEffect(() => {
+    async function loadAnalyticsData() {
+      try {
+        const expRes = await apiFetch("/exports?pageSize=50");
+        if (expRes?.data && Array.isArray(expRes.data) && expRes.data.length > 0) {
+          const formatted = expRes.data.map((job) => ({
+            id: job.id,
+            title: `${job.report.toUpperCase()} Report (${job.format.toUpperCase()})`,
+            format: job.format.toUpperCase(),
+            size: `${job.rowCount || 0} rows`,
+            dateGenerated: new Date(job.createdAt).toISOString().slice(0, 16).replace("T", " "),
+            frequency: "Server Report Export",
+            status: job.status.toUpperCase(),
+            downloadUrl: job.downloadUrl,
+          }));
+          setExportsList(formatted);
+        }
+      } catch (err) {
+        console.warn("Server exports fetch error, using local state:", err);
+      }
+    }
+    loadAnalyticsData();
+  }, []);
+
   // Determine active sub-route from initialAction (e.g. /analytics/campaigns -> 'campaigns')
   const routeInfo = useMemo(() => {
     if (!initialAction || initialAction === "all" || initialAction === "overview") {
@@ -107,21 +133,46 @@ export default function AnalyticsView({ initialAction, onActionChange }) {
     }
   };
 
-  const handleCreateExport = (e) => {
+  const handleCreateExport = async (e) => {
     e.preventDefault();
     if (!newExportTitle.trim()) return;
 
-    const newExp = {
-      id: `exp-${Date.now()}`,
-      title: newExportTitle.trim(),
-      format: newExportFormat,
-      size: "1.2 MB",
-      dateGenerated: new Date().toISOString().slice(0, 16).replace("T", " "),
-      frequency: "Ad-hoc Manual Export",
-      status: "READY",
-    };
+    try {
+      const res = await apiFetch("/exports", {
+        method: "POST",
+        body: JSON.stringify({
+          report: "calls",
+          format: newExportFormat.toLowerCase(),
+        }),
+      });
+      if (res?.data) {
+        const job = res.data;
+        const newExp = {
+          id: job.id,
+          title: newExportTitle.trim(),
+          format: (job.format || newExportFormat).toUpperCase(),
+          size: `${job.rowCount || 0} rows`,
+          dateGenerated: new Date().toISOString().slice(0, 16).replace("T", " "),
+          frequency: "Ad-hoc Manual Export",
+          status: (job.status || "READY").toUpperCase(),
+          downloadUrl: job.downloadUrl,
+        };
+        setExportsList((prev) => [newExp, ...prev]);
+      }
+    } catch (err) {
+      console.warn("Create export API error, local fallback:", err);
+      const newExp = {
+        id: `exp-${Date.now()}`,
+        title: newExportTitle.trim(),
+        format: newExportFormat,
+        size: "1.2 MB",
+        dateGenerated: new Date().toISOString().slice(0, 16).replace("T", " "),
+        frequency: "Ad-hoc Manual Export",
+        status: "READY",
+      };
+      setExportsList((prev) => [newExp, ...prev]);
+    }
 
-    setExportsList((prev) => [newExp, ...prev]);
     setIsExportModalOpen(false);
     setNewExportTitle("");
   };

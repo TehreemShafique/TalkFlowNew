@@ -26,7 +26,12 @@ def uuid7() -> uuid.UUID:
     return uuid.UUID(int=value)
 
 
-class Base(DeclarativeBase):
+class BareBase(DeclarativeBase):
+    pass
+
+
+class Base(BareBase):
+    __abstract__ = True
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,

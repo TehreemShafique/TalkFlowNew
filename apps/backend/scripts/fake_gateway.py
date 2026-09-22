@@ -51,6 +51,7 @@ from workers.call_ingest_worker import (
 
 log = get_logger("scripts.fake_gateway")
 
+
 # One conversational beat: the bot (or caller) says a line on a script node,
 # and optionally captures a qualification field from that exchange.
 @dataclass(frozen=True)

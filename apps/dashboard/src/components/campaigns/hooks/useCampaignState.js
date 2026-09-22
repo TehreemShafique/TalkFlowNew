@@ -1,32 +1,72 @@
-"use client";
-
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import {
-  INITIAL_CAMPAIGNS,
   CAMPAIGN_TEAM_ASSIGNMENTS,
   CAMPAIGN_ACTIVE_SCRIPTS,
   CAMPAIGN_LIVE_OUTCOMES,
 } from "@/data";
 
-// Central campaign state + route parsing for CampaignsView.
-// initialAction can be:
-// - null / 'all' -> Main Campaign List View (/campaigns)
-// - 'performance' -> Performance review subtab (/campaigns/performance)
-// - 'team' -> Assign team subtab (/campaigns/team)
-// - 'scripts' -> Active Scripts subtab (/campaigns/scripts)
-// - 'outcomes' -> Live outcomes subtab (/campaigns/outcomes)
-// - 'new' -> Create Campaign Page (/campaigns/new)
-// - '[campaignId]' e.g. 'camp-2' -> Campaign Overview Page (/campaigns/camp-2)
-// - '[campaignId]/dialing' e.g. 'camp-2/dialing' -> Dialing Settings (/campaigns/camp-2/dialing)
-// - '[campaignId]/routing' e.g. 'camp-2/routing' -> Inbound & DID Routing (/campaigns/camp-2/routing)
-// - '[campaignId]/script' e.g. 'camp-2/script' -> Active Script Binding (/campaigns/camp-2/script)
-// - '[campaignId]/transfer' e.g. 'camp-2/transfer' -> Verifier Pool & Transfer Rules (/campaigns/camp-2/transfer)
-// - '[campaignId]/performance' e.g. 'camp-2/performance' -> Campaign Analytics (/campaigns/camp-2/performance)
 export function useCampaignState(initialAction, onActionChange) {
-  const [campaigns, setCampaigns] = useState(INITIAL_CAMPAIGNS);
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [teamAssignments, setTeamAssignments] = useState(CAMPAIGN_TEAM_ASSIGNMENTS);
   const [activeScripts, setActiveScripts] = useState(CAMPAIGN_ACTIVE_SCRIPTS);
   const [liveOutcomes, setLiveOutcomes] = useState(CAMPAIGN_LIVE_OUTCOMES);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const res = await apiFetch("/campaigns");
+      if (res.ok) {
+        const json = await res.json();
+        const items = json.data || [];
+        // Map backend DTO to frontend campaign model
+        const mapped = items.map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          dialMode: c.dialing?.dialMode || c.dialing?.dial_mode || "ratio",
+          dialLevel: String(c.dialing?.dialLevel || c.dialing?.dial_level || "1.5"),
+          amd: c.dialing?.amd || "Disabled",
+          amdSub: c.dialing?.amdSub || null,
+          trunks: {
+            manual: c.dialing?.trunks?.manual || "trunk_vici_01",
+            auto: c.dialing?.trunks?.auto || "trunk_vici_01",
+            threeWay: c.dialing?.trunks?.threeWay || "trunk_vici_01",
+          },
+          recording: "On bridge",
+          userGroups: c.closerInGroup || "—",
+          dialing: c.dialing || {},
+          routing: { inboundQueue: "Default_Q", fallbackIvr: "Default_IVR" },
+          scriptId: c.scriptId || c.script_id || null,
+          activeScriptVersionId: c.activeScriptVersionId || c.active_script_version_id || null,
+          script: {
+            activeScript: (c.activeScriptVersionId || c.active_script_version_id) ? "Bound Active Script" : "No Script Bound",
+            version: (c.activeScriptVersionId || c.active_script_version_id) ? "Active" : "None",
+          },
+          transfer: { verifierPool: c.closerInGroup || "Unassigned" },
+          performance: {
+            callsDialed: "0",
+            answered: "0",
+            contactRate: "0.0%",
+            conversions: "0",
+            conversionRate: "0.0%",
+            avgDuration: "0m 00s",
+            dropRate: "0.0%",
+          },
+        }));
+        setCampaigns(mapped);
+      }
+    } catch {
+      // Best-effort load
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -137,63 +177,40 @@ export function useCampaignState(initialAction, onActionChange) {
       });
   }, [campaigns, searchQuery, statusFilter, sortField, sortAsc]);
 
-  const handleCreateCampaignSubmit = (e) => {
+  const handleCreateCampaignSubmit = async (e) => {
     e.preventDefault();
     if (!newCampName.trim()) return;
 
-    const newId = `camp-${Date.now().toString().slice(-4)}`;
-    const newCampObj = {
-      id: newId,
-      name: newCampName.trim(),
-      dialMode: newDialMode,
-      status: "active",
-      dialLevel: newDialLevel,
-      amd: newAmd,
-      amdSub: newAmd === "Enabled" ? newAmdSub : null,
-      trunks: {
-        manual: newManualTrunk,
-        auto: newAutoTrunk,
-        threeWay: newThreeWayTrunk,
-      },
-      recording: "On bridge",
-      userGroups: newUserGroups,
-      dialing: {
-        hours: "09:00 - 18:00 EST",
-        maxRetries: 4,
-        callerIds: ["+1 (800) 555-0100"],
-        pacing: `Mode ${newDialMode} (${newDialLevel}x)`,
-        dropTimeout: "3.0s",
-      },
-      routing: {
-        didMappings: [{ did: "+1 (800) 555-0100", queue: `${newCampName.trim()}_Q`, fallback: "IVR_Main" }],
-        inboundQueue: `${newCampName.trim()}_Q`,
-        fallbackIvr: "Default_Welcome_IVR",
-      },
-      script: {
-        activeScript: "Default Sales Pitch v1",
-        version: "v1.0.0",
-        history: [{ version: "v1.0.0", date: new Date().toISOString().slice(0, 10), author: "Admin User", status: "Active" }],
-      },
-      transfer: {
-        verifierPool: "Licensed QA Pool",
-        transferRules: "Warm Consultative Transfer",
-        maxWaitSec: 30,
-      },
-      performance: {
-        callsDialed: "0",
-        answered: "0",
-        contactRate: "0.0%",
-        conversions: "0",
-        conversionRate: "0.0%",
-        avgDuration: "0m 00s",
-        dropRate: "0.0%",
-      },
-    };
+    try {
+      const res = await apiFetch("/campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newCampName.trim(),
+          dialing: {
+            dialMode: newDialMode,
+            dialLevel: newDialLevel,
+            amd: newAmd,
+            amdSub: newAmd === "Enabled" ? newAmdSub : null,
+            trunks: {
+              manual: newManualTrunk,
+              auto: newAutoTrunk,
+              threeWay: newThreeWayTrunk,
+            },
+          },
+        }),
+      });
 
-    setCampaigns((prev) => [newCampObj, ...prev]);
-    setNewCampName("");
-    setIsModalOpen(false);
-    navigateToAction(newId);
+      if (res.ok) {
+        const json = await res.json();
+        const created = json.data;
+        await fetchCampaigns();
+        setNewCampName("");
+        setIsModalOpen(false);
+        navigateToAction(created?.id || null);
+      }
+    } catch (err) {
+      console.error("Failed to create campaign:", err);
+    }
   };
 
   const handleAddAgentToTeam = (e) => {
@@ -261,5 +278,6 @@ export function useCampaignState(initialAction, onActionChange) {
     handleCreateCampaignSubmit,
     handleAddAgentToTeam,
     navigateToAction,
+    fetchCampaigns,
   };
 }

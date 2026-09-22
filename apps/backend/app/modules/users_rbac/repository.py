@@ -1,4 +1,5 @@
 """Data access for users, roles, sessions (Rule R3 - module-scoped)."""
+
 from __future__ import annotations
 
 import uuid
@@ -27,7 +28,9 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def username_exists(db: AsyncSession, username: str, exclude_id: uuid.UUID | None = None) -> bool:
+async def username_exists(
+    db: AsyncSession, username: str, exclude_id: uuid.UUID | None = None
+) -> bool:
     stmt = select(User.id).where(User.username == username)
     if exclude_id is not None:
         stmt = stmt.where(User.id != exclude_id)
@@ -50,9 +53,7 @@ async def list_users(
         filters.append(User.status == status_value)
 
     total = (
-        await db.execute(
-            select(func.count(User.id)).where(and_(*filters))
-        )
+        await db.execute(select(func.count(User.id)).where(and_(*filters)))
     ).scalar_one()
 
     stmt = (
@@ -116,7 +117,9 @@ async def count_other_master_admins(db: AsyncSession, user_id: uuid.UUID) -> int
     return (await db.execute(stmt)).scalar_one()
 
 
-async def replace_user_roles(db: AsyncSession, user_id: uuid.UUID, role_ids: list[uuid.UUID]) -> None:
+async def replace_user_roles(
+    db: AsyncSession, user_id: uuid.UUID, role_ids: list[uuid.UUID]
+) -> None:
     """Replace a user's role membership (single logical operation)."""
     await db.execute(delete(user_roles).where(user_roles.c.user_id == user_id))
     if role_ids:
@@ -128,9 +131,7 @@ async def replace_user_roles(db: AsyncSession, user_id: uuid.UUID, role_ids: lis
 
 
 async def delete_user_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:
-    await db.execute(
-        delete(UserSession).where(UserSession.user_id == user_id)
-    )
+    await db.execute(delete(UserSession).where(UserSession.user_id == user_id))
 
 
 async def hard_delete_user(db: AsyncSession, user_id: uuid.UUID) -> None:

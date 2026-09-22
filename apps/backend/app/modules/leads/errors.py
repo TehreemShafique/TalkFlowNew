@@ -18,9 +18,7 @@ from app.packages.contracts.errors import (
 register_error("lead.not_found", 404, "Lead not found.")
 register_error("lead.campaign_not_found", 404, "Referenced campaign does not exist.")
 register_error("lead.import_job_not_found", 404, "Import job not found.")
-register_error(
-    "lead.import_no_errors", 404, "This import produced no error report."
-)
+register_error("lead.import_no_errors", 404, "This import produced no error report.")
 register_error(
     "lead.import_invalid_state",
     409,
@@ -56,7 +54,9 @@ class LeadNotFoundError(NotFoundError):
 
 class CampaignNotFoundError(NotFoundError):
     def __init__(self, campaign_id: Any) -> None:
-        super().__init__("lead.campaign_not_found", details={"campaign_id": str(campaign_id)})
+        super().__init__(
+            "lead.campaign_not_found", details={"campaign_id": str(campaign_id)}
+        )
 
 
 class ImportJobNotFoundError(NotFoundError):
@@ -81,7 +81,9 @@ class ImportNoMappingError(ConflictError):
 
 class ImportMappingInvalidError(ValidationError):
     def __init__(self, missing: list[str]) -> None:
-        super().__init__("lead.import_mapping_invalid", details={"missing": sorted(missing)})
+        super().__init__(
+            "lead.import_mapping_invalid", details={"missing": sorted(missing)}
+        )
 
 
 class ImportEmptyError(ValidationError):

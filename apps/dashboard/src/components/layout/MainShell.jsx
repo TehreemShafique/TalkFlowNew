@@ -37,8 +37,24 @@ export default function MainShell({ initialTab, initialAction }) {
   const [activeTab, setActiveTab] = useState(initialTab || "dashboard");
   const [activeAction, setActiveAction] = useState(initialAction || null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("talkflow_sidebar_collapsed") === "true";
+    }
+    return false;
+  });
   const { role } = useAuth();
   const roleKey = getRoleKey(role);
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("talkflow_sidebar_collapsed", String(next));
+      }
+      return next;
+    });
+  };
 
   // Role-based navigation guard: any active tab (from URL, search, or state)
   // not permitted for the current role falls back to the dashboard view.
@@ -101,7 +117,7 @@ export default function MainShell({ initialTab, initialAction }) {
     <ProtectedRoute>
       <PendingGuard>
       <FilterProvider>
-        <div className="flex min-h-screen w-full bg-neutral-100 text-neutral-900 transition-colors duration-200 dark:bg-[#050505] dark:text-neutral-100 font-sans">
+        <div className="flex min-h-screen w-full bg-neutral-100 text-neutral-900 transition-colors duration-200 dark:bg-[#000000] dark:text-neutral-100 font-sans">
           {/* 1. Left-Side Navigation Sidebar */}
           <Sidebar
             activeTab={viewTab}
@@ -110,12 +126,16 @@ export default function MainShell({ initialTab, initialAction }) {
             onNavigate={(t, a) => handleTabChange(t, a)}
             isMobileOpen={isMobileSidebarOpen}
             onCloseMobile={() => setIsMobileSidebarOpen(false)}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={handleToggleSidebar}
           />
 
           {/* 2. Main Workspace Display Area */}
           <div className="flex flex-1 flex-col overflow-x-hidden min-w-0">
             <TopNavbar
               onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
+              onToggleDesktopSidebar={handleToggleSidebar}
+              isSidebarCollapsed={isSidebarCollapsed}
               onNavigate={(t, a) => handleTabChange(t, a)}
             />
 

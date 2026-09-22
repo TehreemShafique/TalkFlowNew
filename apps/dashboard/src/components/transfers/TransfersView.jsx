@@ -25,6 +25,7 @@ import {
   Send,
 } from "lucide-react";
 import { LIVE_TRANSFERS, VERIFIER_POOLS, FAILED_TRANSFERS_QUEUE } from "@/data";
+import { apiFetch } from "@/lib/api";
 
 export default function TransfersView({ initialAction, onActionChange }) {
   const [liveTransfersList, setLiveTransfersList] = useState(LIVE_TRANSFERS);
@@ -43,11 +44,24 @@ export default function TransfersView({ initialAction, onActionChange }) {
   };
 
   // Failed Queue handlers
-  const handleRetryTransfer = (failedId) => {
+  const handleRetryTransfer = async (failedId) => {
+    try {
+      await apiFetch(`/transfers/${failedId}/retry`, { method: "POST" });
+    } catch (err) {
+      console.warn("Retry transfer backend call error:", err);
+    }
     setFailedQueue((prev) => prev.filter((item) => item.id !== failedId));
   };
 
-  const handleMarkResolved = (failedId) => {
+  const handleMarkResolved = async (failedId) => {
+    try {
+      await apiFetch(`/transfers/${failedId}/create-callback`, {
+        method: "POST",
+        body: JSON.stringify({ notes: "Marked resolved via dashboard" }),
+      });
+    } catch (err) {
+      console.warn("Create callback backend call error:", err);
+    }
     setFailedQueue((prev) => prev.filter((item) => item.id !== failedId));
   };
 

@@ -28,24 +28,24 @@ export default function DashboardView() {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-neutral-100 text-neutral-900 transition-colors duration-200 dark:bg-[#050505] dark:text-neutral-100">
+    <div className="flex min-h-screen w-full flex-col bg-[#f4f7fb] text-neutral-900 transition-colors duration-200 dark:bg-[#000000] dark:text-neutral-100">
       {/* 1. Filter Toolbar */}
       <FilterToolbox onRefresh={handleRefresh} />
 
-      {/* 3. SubHeader with Action Buttons */}
+      {/* 2. SubHeader with Action Buttons */}
       <SubHeader
         onExportCalls={handleExportCalls}
         onExportSales={handleExportSales}
       />
 
-      {/* 4. Main Analytics Dashboard Layout */}
-      <main className="flex flex-col gap-6 px-4 py-4 sm:px-6">
-        {/* Row 1: KPI Stats Grid (55%) + Disposition % Breakdown (45%) */}
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[55fr_45fr]">
-          <div className="w-full">
+      {/* 3. Main Analytics Dashboard Layout */}
+      <main className="flex flex-col gap-6 px-4 py-5 sm:px-6">
+        {/* Row 1: KPI Stats Grid Container (55%) + Disposition % Breakdown (45%) */}
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[57fr_43fr]">
+          <div className="w-full rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-2xs dark:border-[#1a1a1a] dark:bg-[#000000]">
             <StatsGrid />
           </div>
-          <div className="w-full">
+          <div className="w-full h-full">
             <DispositionChart />
           </div>
         </div>
@@ -79,7 +79,14 @@ export default function DashboardView() {
         <div className="w-full">
           <CallsDataTable />
         </div>
+
+        {/* Footer Tagline */}
+        <div className="flex justify-end pt-2 pb-4">
+          <p className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 italic">
+            Smart Insights for a Smarter Tomorrow
+          </p>
+        </div>
       </main>
     </div>
   );
-}
+}

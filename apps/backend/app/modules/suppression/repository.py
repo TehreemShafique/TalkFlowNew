@@ -130,9 +130,7 @@ async def mark_leads_suppressed(
     )
 
 
-async def clear_leads_suppressed(
-    session: AsyncSession, phones: list[str]
-) -> None:
+async def clear_leads_suppressed(session: AsyncSession, phones: list[str]) -> None:
     """Reflect a DNC removal onto leads that carry this reason."""
     if not phones:
         return

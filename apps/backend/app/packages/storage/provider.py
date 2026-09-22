@@ -4,6 +4,7 @@ Local provider returns **short-lived signed playback/download grants** (not raw
 paths - Rule R7); S3/MinIO returns **SigV4 presigned URLs** hand-rolled so the
 control plane has no botocore dependency (pyproject.toml has none).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -31,7 +32,10 @@ class BaseStorageProvider(ABC):
 
     @abstractmethod
     async def put_bytes(
-        self, storage_key: str, data: bytes, content_type: str = "application/octet-stream"
+        self,
+        storage_key: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
     ) -> None:
         """Persist raw bytes (CSV error reports, export artifacts)."""
 
@@ -45,7 +49,9 @@ class BaseStorageProvider(ABC):
 
 
 class LocalStorageProvider(BaseStorageProvider):
-    def __init__(self, root: Path | None = None, public_base: str | None = None) -> None:
+    def __init__(
+        self, root: Path | None = None, public_base: str | None = None
+    ) -> None:
         self.root = Path(root or settings.storage_local_root).resolve()
         self.public_base = (public_base or settings.storage_public_base_url).rstrip("/")
 
@@ -66,7 +72,10 @@ class LocalStorageProvider(BaseStorageProvider):
         return f"{self.public_base}/api/v1/recordings/stream/{urllib.parse.quote(token, safe='')}"
 
     async def put_bytes(
-        self, storage_key: str, data: bytes, content_type: str = "application/octet-stream"
+        self,
+        storage_key: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
     ) -> None:
         path = self._path(storage_key)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,9 +115,7 @@ class S3StorageProvider(BaseStorageProvider):
 
         payload_hash = hashlib.sha256(b"").hexdigest()
         canonical_headers = (
-            f"host:{host}\n"
-            f"x-amz-content-sha256:{payload_hash}\n"
-            f"x-amz-date:{amz_date}\n"
+            f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
         )
         signed_headers = "host;x-amz-content-sha256;x-amz-date"
         params = (
@@ -116,9 +123,7 @@ class S3StorageProvider(BaseStorageProvider):
             f"&X-Amz-Credential={urllib.parse.quote(f'{self.access_key}/{scope}', safe='')}"
             f"&X-Amz-Date={amz_date}&X-Amz-Expires={exp}&X-Amz-SignedHeaders={signed_headers}"
         )
-        canonical_request = (
-            f"{method}\n{path}\n{params}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
-        )
+        canonical_request = f"{method}\n{path}\n{params}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
         string_to_sign = (
             f"AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n"
             f"{hashlib.sha256(canonical_request.encode()).hexdigest()}"
@@ -131,7 +136,9 @@ class S3StorageProvider(BaseStorageProvider):
         k_region = hmac_sha256(k_date, self.region)
         k_service = hmac_sha256(k_region, "s3")
         k_signing = hmac_sha256(k_service, "aws4_request")
-        signature = hmac.new(k_signing, string_to_sign.encode(), hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            k_signing, string_to_sign.encode(), hashlib.sha256
+        ).hexdigest()
 
         return (
             f"{self.endpoint}/{self.bucket}/{urllib.parse.quote(key.lstrip('/'))}"
@@ -144,7 +151,10 @@ class S3StorageProvider(BaseStorageProvider):
         return self._sign(method="GET", key=storage_key, ttl_seconds=ttl_seconds)
 
     async def put_bytes(
-        self, storage_key: str, data: bytes, content_type: str = "application/octet-stream"
+        self,
+        storage_key: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
     ) -> None:
         payload_hash = hashlib.sha256(data).hexdigest()
         now = datetime.now(UTC)
@@ -167,9 +177,7 @@ class S3StorageProvider(BaseStorageProvider):
             f"&X-Amz-Date={amz_date}&X-Amz-Expires=300"
             f"&X-Amz-SignedHeaders={signed_headers}"
         )
-        canonical_request = (
-            f"PUT\n{path}\n{params}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
-        )
+        canonical_request = f"PUT\n{path}\n{params}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
         string_to_sign = (
             f"AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n"
             f"{hashlib.sha256(canonical_request.encode()).hexdigest()}"
@@ -182,8 +190,12 @@ class S3StorageProvider(BaseStorageProvider):
         k_region = hmac_sha256(k_date, self.region)
         k_service = hmac_sha256(k_region, "s3")
         k_signing = hmac_sha256(k_service, "aws4_request")
-        signature = hmac.new(k_signing, string_to_sign.encode(), hashlib.sha256).hexdigest()
-        url = f"{self.endpoint}/{self.bucket}/{path}?{params}&X-Amz-Signature={signature}"
+        signature = hmac.new(
+            k_signing, string_to_sign.encode(), hashlib.sha256
+        ).hexdigest()
+        url = (
+            f"{self.endpoint}/{self.bucket}/{path}?{params}&X-Amz-Signature={signature}"
+        )
 
         async with httpx.AsyncClient() as client:
             resp = await client.put(

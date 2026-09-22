@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from app.packages.contracts.errors import (
     ConflictError,
     NotFoundError,
@@ -20,8 +18,14 @@ SCRIPT_VERSION_CONFLICT = "script.version_conflict"
 
 register_error(SCRIPT_NOT_FOUND, 404, "Script not found.")
 register_error(SCRIPT_VERSION_NOT_FOUND, 404, "Script version not found.")
-register_error(SCRIPT_INVALID_TRANSITION, 409, "Invalid state transition for script version.")
-register_error(SCRIPT_VERSION_NOT_EDITABLE, 409, "Script version is immutable once submitted or approved.")
+register_error(
+    SCRIPT_INVALID_TRANSITION, 409, "Invalid state transition for script version."
+)
+register_error(
+    SCRIPT_VERSION_NOT_EDITABLE,
+    409,
+    "Script version is immutable once submitted or approved.",
+)
 register_error(SCRIPT_INVALID_NODE_GRAPH, 422, "Script node graph is invalid.")
 register_error(SCRIPT_VERSION_CONFLICT, 409, "Script was modified by another user.")
 

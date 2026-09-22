@@ -60,6 +60,7 @@ REPORT_HEADERS: dict[str, list[str]] = {
         "lead_id",
         "campaign_id",
         "verifier_id",
+        "caller_number",
     ],
 }
 
@@ -116,16 +117,21 @@ def build_csv(
 ) -> bytes:
     """Serialize the row dicts into CSV bytes (RFC 4180 line endings).
 
-    Ordering follows ``headers``; only the ``phone`` column is subject to
-    masking for non-PII tenants.
+    Ordering follows ``headers``; caller_number / phone columns are omitted or
+    masked for non-PII tenants.
     """
+    effective_headers = [h for h in headers if not (mask_phone and h in ("caller_number", "phone"))] if mask_phone else headers
     buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=headers, extrasaction="ignore")
+    writer = csv.DictWriter(buffer, fieldnames=effective_headers, extrasaction="ignore")
     writer.writeheader()
     for row in rows:
-        if mask_phone and "phone" in headers and row.get("phone"):
-            row = {**row, "phone": masked_phone(str(row["phone"]))}
-        writer.writerow({header: _cell(row.get(header)) for header in headers})
+        row_copy = dict(row)
+        if mask_phone:
+            if "phone" in row_copy and row_copy.get("phone"):
+                row_copy["phone"] = masked_phone(str(row_copy["phone"]))
+            if "caller_number" in row_copy and row_copy.get("caller_number"):
+                row_copy["caller_number"] = masked_phone(str(row_copy["caller_number"]))
+        writer.writerow({header: _cell(row_copy.get(header)) for header in effective_headers})
     return buffer.getvalue().encode("utf-8")
 
 

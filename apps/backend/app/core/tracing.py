@@ -3,6 +3,7 @@
 Every response carries `X-Trace-Id`; errors bake the same id into their
 envelope (see main.py error handler).  No vendor SDK required.
 """
+
 from __future__ import annotations
 
 import uuid

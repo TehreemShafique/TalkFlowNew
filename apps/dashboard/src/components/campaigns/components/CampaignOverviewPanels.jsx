@@ -2,7 +2,7 @@
 
 export default function CampaignOverviewPanels({ campaign }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-5 shadow-xs flex flex-col gap-4">
         <h3 className="text-sm font-bold text-neutral-900 dark:text-white border-b border-neutral-100 dark:border-neutral-800 pb-3">
           Dialer Configuration Overview
@@ -54,17 +54,6 @@ export default function CampaignOverviewPanels({ campaign }) {
             <span className="text-[11px] text-neutral-400 font-medium">3-Way Transfer Trunk</span>
             <span className="font-mono font-bold text-blue-600">{campaign.trunks.threeWay}</span>
           </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-5 shadow-xs flex flex-col justify-between gap-4">
-        <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white border-b border-neutral-100 dark:border-neutral-800 pb-3">
-            Sub-Route Navigation
-          </h3>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-            Click any card above to open dedicated sub-routes: Dialing, Inbound Routing, Active Script, Verifier Transfer, or Analytics.
-          </p>
         </div>
       </div>
     </div>

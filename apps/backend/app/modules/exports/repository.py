@@ -58,9 +58,7 @@ async def list_exports(
     return rows, total
 
 
-async def get_export(
-    session: AsyncSession, job_id: uuid.UUID
-) -> ExportJob | None:
+async def get_export(session: AsyncSession, job_id: uuid.UUID) -> ExportJob | None:
     stmt = select(ExportJob).where(ExportJob.id == job_id)
     return (await session.execute(stmt)).scalar_one_or_none()
 

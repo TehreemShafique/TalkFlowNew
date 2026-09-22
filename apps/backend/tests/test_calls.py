@@ -148,10 +148,11 @@ async def test_list_calls_returns_camel_case_contract(client, seeded):
     assert "startedAt" in call and "createdAt" in call
 
 
-async def test_get_call_detail(client, seeded,):
-    resp = await client.get(
-        f"/calls/{seeded['call_id']}", headers=seeded["headers"]
-    )
+async def test_get_call_detail(
+    client,
+    seeded,
+):
+    resp = await client.get(f"/calls/{seeded['call_id']}", headers=seeded["headers"])
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert data["id"] == str(seeded["call_id"])
@@ -180,9 +181,7 @@ async def test_viewer_can_list_but_not_dispose(client, seeded):
     assert dispose_resp.json()["error"]["code"] == "auth.permission_denied"
 
 
-async def test_admin_disposition_updates_qualification_and_writes_audit(
-    client, seeded
-):
+async def test_admin_disposition_updates_qualification_and_writes_audit(client, seeded):
     resp = await client.patch(
         f"/calls/{seeded['call_id']}/disposition",
         headers=seeded["headers"],
@@ -201,15 +200,15 @@ async def test_admin_disposition_updates_qualification_and_writes_audit(
         from app.packages.db.models import audit_log_table, outbox_table
 
         dispatched = await db.execute(
-            select(func.count()).select_from(outbox_table).where(
-                outbox_table.c.event_type == "call.disposition_changed"
-            )
+            select(func.count())
+            .select_from(outbox_table)
+            .where(outbox_table.c.event_type == "call.disposition_changed")
         )
         assert dispatched.scalar_one() == 1
         audited = await db.execute(
-            select(func.count()).select_from(audit_log_table).where(
-                audit_log_table.c.action == "call.disposition"
-            )
+            select(func.count())
+            .select_from(audit_log_table)
+            .where(audit_log_table.c.action == "call.disposition")
         )
         assert audited.scalar_one() == 1
 
@@ -350,9 +349,7 @@ async def test_transcript_search(seeded):
 
 async def test_search_matches_reference(client, seeded):
     call_id = await _insert_call(seeded, reference="TF-SEARCH-77")
-    resp = await client.get(
-        "/calls?search=TF-SEARCH-77", headers=seeded["headers"]
-    )
+    resp = await client.get("/calls?search=TF-SEARCH-77", headers=seeded["headers"])
     assert resp.status_code == 200
     assert resp.json()["meta"]["total"] >= 1
     assert str(call_id) in {c["id"] for c in resp.json()["data"]}
@@ -362,9 +359,7 @@ async def test_filter_by_status(client, seeded):
     await _insert_call(
         seeded, status=CallStatus.IN_PROGRESS.value, reference="TF-FILTER-1"
     )
-    resp = await client.get(
-        "/calls?status=in_progress", headers=seeded["headers"]
-    )
+    resp = await client.get("/calls?status=in_progress", headers=seeded["headers"])
     assert resp.status_code == 200
     refs = [c["reference"] for c in resp.json()["data"]]
     assert refs == ["TF-FILTER-1"]

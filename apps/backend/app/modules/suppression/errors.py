@@ -17,7 +17,9 @@ register_error(
     409,
     "This number already has an active suppression entry.",
 )
-register_error("suppression.invalid_phone", 422, "The phone number is not a valid US number.")
+register_error(
+    "suppression.invalid_phone", 422, "The phone number is not a valid US number."
+)
 register_error("suppression.import_empty", 422, "The CSV contains no data rows.")
 register_error(
     "suppression.import_missing_phone_column",
@@ -28,6 +30,11 @@ register_error(
     "suppression.file_too_large",
     422,
     "The CSV exceeds the maximum upload size.",
+)
+register_error(
+    "suppression.removal_invalid",
+    422,
+    "Removal requires confirm_removal=='CONFIRM_REMOVAL' and valid rationale.",
 )
 
 
@@ -61,6 +68,11 @@ class SuppressionMissingPhoneColumnError(ValidationError):
 class SuppressionFileTooLargeError(ValidationError):
     def __init__(self, details: dict[str, Any] | None = None) -> None:
         super().__init__("suppression.file_too_large", details=details)
+
+
+class SuppressionRemovalInvalidError(ValidationError):
+    def __init__(self, details: dict[str, Any] | None = None) -> None:
+        super().__init__("suppression.removal_invalid", details=details)
 
 
 def _display_phone(phone: str) -> str:

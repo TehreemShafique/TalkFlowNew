@@ -1485,7 +1485,6 @@ curl -s "localhost:8080/api/v1/analytics/summary?from=2026-09-01&to=2026-09-30" 
 # open the dashboard — numbers should match the curl output exactly
 ```
 
----
 
 ## ✅ 70% LINE — STOP AND VERIFY
 
@@ -1495,9 +1494,7 @@ Everything below runs with **zero** VICIdial and **zero** Asterisk.
 make check                        # lint, types, boundaries, single head, contract
 make test                         # full suite green
 python tools/fake_gateway.py ...  # x500, mixed outcomes
-```
 
-```
 □ Login → dashboard renders real numbers from agg_* tables
 □ A script authored in the UI validates, gets approved, activates
 □ Simulation reproduces a persisted call's node path exactly
@@ -1511,7 +1508,6 @@ python tools/fake_gateway.py ...  # x500, mixed outcomes
 □ Kafka killed mid-call → events replay from disk on restart, nothing lost
 □ Every route has a permission dependency (CI-enforced)
 □ openapi.json committed and drift-gated
-```
 
 If any box is unticked, fix it now. Integration doubles the surface area — do not carry known defects into Phase 8.
 

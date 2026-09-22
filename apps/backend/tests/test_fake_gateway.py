@@ -7,6 +7,7 @@ events into the STEP 15 ``CallIngestHandler`` against the suite Postgres engine
 fully simulated call: CDR row, 8-turn transcript, latency performance and the
 traversed script-path.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -57,16 +58,15 @@ class RecordingProducer:
     def __init__(self) -> None:
         self.sent: list[tuple[str, dict, bytes | None]] = []
 
-    async def start(self) -> None:
-        ...
+    async def start(self) -> None: ...
 
-    async def stop(self) -> None:
-        ...
+    async def stop(self) -> None: ...
 
-    async def flush(self) -> None:
-        ...
+    async def flush(self) -> None: ...
 
-    async def send(self, topic: str, value: dict | None = None, key: bytes | None = None) -> None:
+    async def send(
+        self, topic: str, value: dict | None = None, key: bytes | None = None
+    ) -> None:
         self.sent.append((topic, value or {}, key))
 
 
@@ -190,7 +190,13 @@ async def test_fake_gateway_qualified_call_pipeline(client, seeded):
     ("outcome", "turns", "fields", "disposition", "qual_status"),
     [
         (Outcome.QUALIFIED, 8, 2, "qualified_transferred", "qualified"),
-        (Outcome.DISQUALIFIED_NO_PART_AB, 5, 1, "disqualified_no_part_ab", "disqualified"),
+        (
+            Outcome.DISQUALIFIED_NO_PART_AB,
+            5,
+            1,
+            "disqualified_no_part_ab",
+            "disqualified",
+        ),
         (Outcome.DISQUALIFIED_AGE, 6, 2, "disqualified_age_range", "disqualified"),
         (Outcome.OPTED_OUT, 4, 0, "opted_out", "pending"),
         (Outcome.SILENCE, 2, 0, "silence_no_response", "pending"),

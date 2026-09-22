@@ -26,6 +26,7 @@ from app.modules.scripts.schemas import (
     ScriptDTO,
     ScriptListQuery,
     ScriptNodeDTO,
+    ScriptSimulationRequest,
     ScriptSimulationResultDTO,
     ScriptSimulationStepDTO,
     ScriptUpdate,
@@ -53,82 +54,130 @@ def _nodes_from_simple_text(
     entry_id = "node-1"
 
     g_text = greeting or "Hello, thank you for taking our call."
-    nodes.append({
-        "id": "node-1",
-        "type": ScriptNodeType.GREETING.value,
-        "label": "Greeting",
-        "prompt": g_text,
-        "required": True,
-        "maxRetries": 1,
-        "noResponseMs": 5000,
-        "allowBargeIn": True,
-        "transitions": [{"id": "tr-1", "when": "always", "nextNodeId": "node-2"}],
-    })
+    nodes.append(
+        {
+            "id": "node-1",
+            "type": ScriptNodeType.GREETING.value,
+            "label": "Greeting",
+            "prompt": g_text,
+            "required": True,
+            "maxRetries": 1,
+            "noResponseMs": 5000,
+            "allowBargeIn": True,
+            "transitions": [{"id": "tr-1", "when": "always", "nextNodeId": "node-2"}],
+        }
+    )
 
-    c_text = consent or "This call is recorded for quality and compliance purposes. May we proceed?"
-    nodes.append({
-        "id": "node-2",
-        "type": ScriptNodeType.CONSENT.value,
-        "label": "TCPA Consent",
-        "prompt": c_text,
-        "captureField": "tcpa_consent",
-        "captureType": "boolean",
-        "required": True,
-        "maxRetries": 2,
-        "noResponseMs": 5000,
-        "allowBargeIn": True,
-        "transitions": [
-            {"id": "tr-2a", "when": "yes", "nextNodeId": "node-q1" if (questions and len(questions) > 0) else "node-transfer"},
-            {"id": "tr-2b", "when": "no", "nextNodeId": "node-disqualify", "endCall": True, "disposition": "opt_out"},
-        ],
-    })
-
-    q_list = questions or ["Are you enrolled in Medicare Part A and B?"]
-    for idx, q_prompt in enumerate(q_list, start=1):
-        q_id = f"node-q{idx}"
-        next_id = f"node-q{idx+1}" if idx < len(q_list) else "node-transfer"
-        nodes.append({
-            "id": q_id,
-            "type": ScriptNodeType.QUESTION.value,
-            "label": f"Qualification Q{idx}",
-            "prompt": q_prompt,
-            "captureField": f"qual_q{idx}",
+    c_text = (
+        consent
+        or "This call is recorded for quality and compliance purposes. May we proceed?"
+    )
+    nodes.append(
+        {
+            "id": "node-2",
+            "type": ScriptNodeType.CONSENT.value,
+            "label": "TCPA Consent",
+            "prompt": c_text,
+            "captureField": "tcpa_consent",
             "captureType": "boolean",
             "required": True,
             "maxRetries": 2,
             "noResponseMs": 5000,
             "allowBargeIn": True,
             "transitions": [
-                {"id": f"tr-q{idx}a", "when": "yes", "nextNodeId": next_id},
-                {"id": f"tr-q{idx}b", "when": "no", "nextNodeId": "node-disqualify", "endCall": True, "disposition": "disqualified"},
+                {
+                    "id": "tr-2a",
+                    "when": "yes",
+                    "nextNodeId": "node-q1"
+                    if (questions and len(questions) > 0)
+                    else "node-transfer",
+                },
+                {
+                    "id": "tr-2b",
+                    "when": "no",
+                    "nextNodeId": "node-disqualify",
+                    "endCall": True,
+                    "disposition": "opt_out",
+                },
             ],
-        })
+        }
+    )
 
-    t_text = transfer_msg or "Great news! Connecting you to a licensed Medicare verifier now."
-    nodes.append({
-        "id": "node-transfer",
-        "type": ScriptNodeType.TRANSFER.value,
-        "label": "Verifier Handoff",
-        "prompt": t_text,
-        "required": False,
-        "maxRetries": 1,
-        "noResponseMs": 5000,
-        "allowBargeIn": False,
-        "transitions": [{"id": "tr-t1", "when": "always", "endCall": False, "disposition": "qualified_transferred"}],
-    })
+    q_list = questions or ["Are you enrolled in Medicare Part A and B?"]
+    for idx, q_prompt in enumerate(q_list, start=1):
+        q_id = f"node-q{idx}"
+        next_id = f"node-q{idx + 1}" if idx < len(q_list) else "node-transfer"
+        nodes.append(
+            {
+                "id": q_id,
+                "type": ScriptNodeType.QUESTION.value,
+                "label": f"Qualification Q{idx}",
+                "prompt": q_prompt,
+                "captureField": f"qual_q{idx}",
+                "captureType": "boolean",
+                "required": True,
+                "maxRetries": 2,
+                "noResponseMs": 5000,
+                "allowBargeIn": True,
+                "transitions": [
+                    {"id": f"tr-q{idx}a", "when": "yes", "nextNodeId": next_id},
+                    {
+                        "id": f"tr-q{idx}b",
+                        "when": "no",
+                        "nextNodeId": "node-disqualify",
+                        "endCall": True,
+                        "disposition": "disqualified",
+                    },
+                ],
+            }
+        )
+
+    t_text = (
+        transfer_msg
+        or "Great news! Connecting you to a licensed Medicare verifier now."
+    )
+    nodes.append(
+        {
+            "id": "node-transfer",
+            "type": ScriptNodeType.TRANSFER.value,
+            "label": "Verifier Handoff",
+            "prompt": t_text,
+            "required": False,
+            "maxRetries": 1,
+            "noResponseMs": 5000,
+            "allowBargeIn": False,
+            "transitions": [
+                {
+                    "id": "tr-t1",
+                    "when": "always",
+                    "endCall": False,
+                    "disposition": "qualified_transferred",
+                }
+            ],
+        }
+    )
 
     d_text = disqualify_msg or "Thank you for your time today. Goodbye."
-    nodes.append({
-        "id": "node-disqualify",
-        "type": ScriptNodeType.CLOSING.value,
-        "label": "Disqualification Closing",
-        "prompt": d_text,
-        "required": False,
-        "maxRetries": 1,
-        "noResponseMs": 5000,
-        "allowBargeIn": False,
-        "transitions": [{"id": "tr-d1", "when": "always", "endCall": True, "disposition": "disqualified"}],
-    })
+    nodes.append(
+        {
+            "id": "node-disqualify",
+            "type": ScriptNodeType.CLOSING.value,
+            "label": "Disqualification Closing",
+            "prompt": d_text,
+            "required": False,
+            "maxRetries": 1,
+            "noResponseMs": 5000,
+            "allowBargeIn": False,
+            "transitions": [
+                {
+                    "id": "tr-d1",
+                    "when": "always",
+                    "endCall": True,
+                    "disposition": "disqualified",
+                }
+            ],
+        }
+    )
 
     return entry_id, nodes
 
@@ -152,7 +201,10 @@ def _extract_projections(nodes: list[dict[str, Any]]) -> dict[str, Any]:
             questions.append(prompt)
         elif ntype == ScriptNodeType.TRANSFER.value and not transfer_msg:
             transfer_msg = prompt
-        elif ntype in (ScriptNodeType.CLOSING.value, ScriptNodeType.OPT_OUT.value) and not disqualify_msg:
+        elif (
+            ntype in (ScriptNodeType.CLOSING.value, ScriptNodeType.OPT_OUT.value)
+            and not disqualify_msg
+        ):
             disqualify_msg = prompt
 
     return {
@@ -178,7 +230,9 @@ def _to_version_summary_dto(v: ScriptVersion) -> ScriptVersionSummaryDTO:
     )
 
 
-def _to_version_dto(v: ScriptVersion, campaign_names: list[str] | None = None) -> ScriptVersionDTO:
+def _to_version_dto(
+    v: ScriptVersion, campaign_names: list[str] | None = None
+) -> ScriptVersionDTO:
     raw_nodes = v.nodes or []
     node_dtos = [ScriptNodeDTO.model_validate(n) for n in raw_nodes]
     proj = _extract_projections(raw_nodes)
@@ -246,7 +300,7 @@ async def _to_script_dto(
         versions=version_summaries,
         created_at=script.created_at,
         updated_at=script.updated_at,
-        version_counter=script.version,
+        version=script.version,
         greeting=proj["greeting"],
         consent=proj["consent"],
         qualification_questions=proj["qualification_questions"],
@@ -261,9 +315,11 @@ async def list_scripts(
     query: ScriptListQuery,
 ) -> PagedResponse[ScriptDTO]:
     """List scripts for library view."""
-    scripts, total = await repository.list_scripts(db, query, actor.access_scope)
+    scripts, total = await repository.list_scripts(db, query, actor.scope)
     items = [await _to_script_dto(db, s) for s in scripts]
-    total_pages = (total + query.page_size - 1) // query.page_size if query.page_size > 0 else 0
+    total_pages = (
+        (total + query.page_size - 1) // query.page_size if query.page_size > 0 else 0
+    )
     meta = PagedMeta(
         page=query.page,
         page_size=query.page_size,
@@ -312,7 +368,11 @@ async def create_script(
         db,
         script_id=script.id,
         event_type=ScriptEventType.CREATED,
-        payload={"scriptId": str(script.id), "name": script.name, "createdBy": str(actor.user_id)},
+        payload={
+            "scriptId": str(script.id),
+            "name": script.name,
+            "createdBy": str(actor.user_id),
+        },
     )
     await write_audit(
         db,
@@ -352,8 +412,13 @@ async def update_script(
     if not script:
         raise ScriptNotFoundError(f"Script {script_id} not found.")
 
-    if payload.expected_version is not None and script.version != payload.expected_version:
-        raise ScriptVersionConflictError(f"Script expected version {payload.expected_version} but found {script.version}")
+    if (
+        payload.expected_version is not None
+        and script.version != payload.expected_version
+    ):
+        raise ScriptVersionConflictError(
+            f"Script expected version {payload.expected_version} but found {script.version}"
+        )
 
     if payload.name is not None:
         script.name = payload.name
@@ -393,7 +458,9 @@ async def duplicate_script(
     source_ver = None
     if source.versions:
         if source.active_version_id:
-            source_ver = next((v for v in source.versions if v.id == source.active_version_id), None)
+            source_ver = next(
+                (v for v in source.versions if v.id == source.active_version_id), None
+            )
         if not source_ver:
             source_ver = max(source.versions, key=lambda x: x.version)
 
@@ -455,13 +522,26 @@ async def create_version(
 
     base_ver = None
     if payload.from_version is not None:
-        base_ver = next((v for v in (script.versions or []) if v.version == payload.from_version), None)
+        base_ver = next(
+            (v for v in (script.versions or []) if v.version == payload.from_version),
+            None,
+        )
     if not base_ver and script.versions:
         base_ver = max(script.versions, key=lambda x: x.version)
 
-    nodes_raw = [n.model_dump(by_alias=True) for n in payload.nodes] if payload.nodes is not None else (base_ver.nodes if base_ver else [])
-    entry_node_id = payload.entry_node_id or (base_ver.entry_node_id if base_ver else "node-1")
-    rule_set_id = payload.rule_set_id if payload.rule_set_id is not None else (base_ver.rule_set_id if base_ver else None)
+    nodes_raw = (
+        [n.model_dump(by_alias=True) for n in payload.nodes]
+        if payload.nodes is not None
+        else (base_ver.nodes if base_ver else [])
+    )
+    entry_node_id = payload.entry_node_id or (
+        base_ver.entry_node_id if base_ver else "node-1"
+    )
+    rule_set_id = (
+        payload.rule_set_id
+        if payload.rule_set_id is not None
+        else (base_ver.rule_set_id if base_ver else None)
+    )
 
     ver = await repository.create_script_version(
         db,
@@ -477,7 +557,11 @@ async def create_version(
         db,
         script_id=script.id,
         event_type=ScriptEventType.VERSION_CREATED,
-        payload={"scriptId": str(script.id), "version": ver.version, "versionId": str(ver.id)},
+        payload={
+            "scriptId": str(script.id),
+            "version": ver.version,
+            "versionId": str(ver.id),
+        },
     )
 
     return DataResponse(data=_to_version_dto(ver))
@@ -493,7 +577,9 @@ async def get_version(
     _ = actor
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
-        raise ScriptVersionNotFoundError(f"Version {v_ident} for script {script_id} not found.")
+        raise ScriptVersionNotFoundError(
+            f"Version {v_ident} for script {script_id} not found."
+        )
 
     c_names = await repository.get_campaigns_for_script_version(db, ver.id)
     return DataResponse(data=_to_version_dto(ver, c_names))
@@ -509,7 +595,9 @@ async def update_version(
     """Update draft version content."""
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
-        raise ScriptVersionNotFoundError(f"Version {v_ident} for script {script_id} not found.")
+        raise ScriptVersionNotFoundError(
+            f"Version {v_ident} for script {script_id} not found."
+        )
 
     if not policies.can_edit_version(ver.status):
         raise ScriptVersionNotEditableError(ver.status)
@@ -517,7 +605,15 @@ async def update_version(
     if payload.nodes is not None:
         nodes_raw = [n.model_dump(by_alias=True) for n in payload.nodes]
         entry_node_id = payload.entry_node_id or ver.entry_node_id
-    elif any([payload.greeting, payload.consent, payload.qualification_questions, payload.transfer_message, payload.disqualification_message]):
+    elif any(
+        [
+            payload.greeting,
+            payload.consent,
+            payload.qualification_questions,
+            payload.transfer_message,
+            payload.disqualification_message,
+        ]
+    ):
         entry_node_id, nodes_raw = _nodes_from_simple_text(
             payload.greeting,
             payload.consent,
@@ -565,10 +661,14 @@ async def submit_version(
     """Submit version for approval (draft -> pending_approval)."""
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
-        raise ScriptVersionNotFoundError(f"Version {v_ident} for script {script_id} not found.")
+        raise ScriptVersionNotFoundError(
+            f"Version {v_ident} for script {script_id} not found."
+        )
 
     if not policies.can_transition(ver.status, ScriptStatus.PENDING_APPROVAL.value):
-        raise ScriptInvalidTransitionError(ver.status, ScriptStatus.PENDING_APPROVAL.value)
+        raise ScriptInvalidTransitionError(
+            ver.status, ScriptStatus.PENDING_APPROVAL.value
+        )
 
     ver.status = ScriptStatus.PENDING_APPROVAL.value
     ver.submitted_by = actor.user_id
@@ -579,7 +679,11 @@ async def submit_version(
         db,
         script_id=script_id,
         event_type=ScriptEventType.SUBMITTED,
-        payload={"scriptId": str(script_id), "versionId": str(ver.id), "version": ver.version},
+        payload={
+            "scriptId": str(script_id),
+            "versionId": str(ver.id),
+            "version": ver.version,
+        },
     )
     await write_audit(
         db,
@@ -604,7 +708,9 @@ async def approve_version(
     """Approve version (pending_approval -> approved)."""
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
-        raise ScriptVersionNotFoundError(f"Version {v_ident} for script {script_id} not found.")
+        raise ScriptVersionNotFoundError(
+            f"Version {v_ident} for script {script_id} not found."
+        )
 
     if not policies.can_transition(ver.status, ScriptStatus.APPROVED.value):
         raise ScriptInvalidTransitionError(ver.status, ScriptStatus.APPROVED.value)
@@ -623,7 +729,11 @@ async def approve_version(
         db,
         script_id=script_id,
         event_type=ScriptEventType.APPROVED,
-        payload={"scriptId": str(script_id), "versionId": str(ver.id), "approvedBy": str(actor.user_id)},
+        payload={
+            "scriptId": str(script_id),
+            "versionId": str(ver.id),
+            "approvedBy": str(actor.user_id),
+        },
     )
     await write_audit(
         db,
@@ -649,7 +759,9 @@ async def reject_version(
     """Reject version (pending_approval -> draft with rejected_reason)."""
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
-        raise ScriptVersionNotFoundError(f"Version {v_ident} for script {script_id} not found.")
+        raise ScriptVersionNotFoundError(
+            f"Version {v_ident} for script {script_id} not found."
+        )
 
     if not policies.can_transition(ver.status, ScriptStatus.DRAFT.value):
         raise ScriptInvalidTransitionError(ver.status, ScriptStatus.DRAFT.value)
@@ -662,7 +774,11 @@ async def reject_version(
         db,
         script_id=script_id,
         event_type=ScriptEventType.REJECTED,
-        payload={"scriptId": str(script_id), "versionId": str(ver.id), "reason": payload.reason},
+        payload={
+            "scriptId": str(script_id),
+            "versionId": str(ver.id),
+            "reason": payload.reason,
+        },
     )
     await write_audit(
         db,
@@ -672,7 +788,11 @@ async def reject_version(
         resource_type="script_version",
         resource_id=str(ver.id),
         result=AuditResult.SUCCESS,
-        details={"scriptId": str(script_id), "version": ver.version, "reason": payload.reason},
+        details={
+            "scriptId": str(script_id),
+            "version": ver.version,
+            "reason": payload.reason,
+        },
     )
 
     return DataResponse(data=_to_version_dto(ver))
@@ -692,7 +812,9 @@ async def activate_version(
 
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
-        raise ScriptVersionNotFoundError(f"Version {v_ident} for script {script_id} not found.")
+        raise ScriptVersionNotFoundError(
+            f"Version {v_ident} for script {script_id} not found."
+        )
 
     if ver.status != ScriptStatus.ACTIVE.value:
         if not policies.can_transition(ver.status, ScriptStatus.ACTIVE.value):
@@ -701,9 +823,12 @@ async def activate_version(
         # Archive previous active version if exists
         all_vers = await repository.get_versions_for_script(db, script.id)
         for v in all_vers:
-            if v.status == ScriptStatus.ACTIVE.value and v.id != ver.id:
-                if policies.can_transition(v.status, ScriptStatus.ARCHIVED.value):
-                    v.status = ScriptStatus.ARCHIVED.value
+            if (
+                v.status == ScriptStatus.ACTIVE.value
+                and v.id != ver.id
+                and policies.can_transition(v.status, ScriptStatus.ARCHIVED.value)
+            ):
+                v.status = ScriptStatus.ARCHIVED.value
 
         ver.status = ScriptStatus.ACTIVE.value
         ver.activated_at = datetime.now(UTC)
@@ -780,11 +905,13 @@ async def diff_version(
 
     for nid in nodes_a.keys() & nodes_b.keys():
         if nodes_a[nid] != nodes_b[nid]:
-            modified.append({
-                "id": nid,
-                "before": nodes_b[nid],
-                "after": nodes_a[nid],
-            })
+            modified.append(
+                {
+                    "id": nid,
+                    "before": nodes_b[nid],
+                    "after": nodes_a[nid],
+                }
+            )
 
     summary = f"+{len(added)} nodes, -{len(removed)} nodes, ~{len(modified)} modified"
 
@@ -808,26 +935,86 @@ async def simulate_version(
     v_ident: str,
     payload: ScriptSimulationRequest,
 ) -> DataResponse[ScriptSimulationResultDTO]:
-    """Step through interactive conversation flow graph."""
+    """Step through interactive conversation flow graph (Step 23)."""
     _ = actor
     ver = await repository.get_script_version(db, script_id, v_ident)
     if not ver:
         raise ScriptVersionNotFoundError(f"Version {v_ident} not found.")
 
     nodes_map = {n.get("id"): n for n in (ver.nodes or []) if n.get("id")}
-    curr_node_id = ver.entry_node_id
     steps: list[ScriptSimulationStepDTO] = []
     spoken_prompts: list[str] = []
     captured_fields: dict[str, Any] = {}
+    node_path: list[str] = []
+    compliance_unsatisfied: list[str] = []
     final_disposition: str | None = None
     completed = False
 
+    # 1. Event-based trace execution (Step 23)
+    if payload.events:
+        for idx, ev in enumerate(payload.events, start=1):
+            node_path.append(ev.node_id)
+            node = nodes_map.get(ev.node_id, {})
+            prompt = node.get("prompt", "")
+            spoken_prompts.append(prompt)
+
+            c_field = node.get("captureField")
+            if c_field and ev.value is not None:
+                captured_fields[c_field] = ev.value
+            elif c_field and ev.event in ("yes", "no"):
+                captured_fields[c_field] = ev.event == "yes"
+
+            steps.append(
+                ScriptSimulationStepDTO(
+                    step=idx,
+                    node_id=ev.node_id,
+                    node_type=node.get("type", "statement"),
+                    prompt=prompt,
+                    user_response=str(ev.value) if ev.value is not None else ev.event,
+                    transition_taken=ev.event,
+                    captured_field=c_field,
+                    captured_value=captured_fields.get(c_field) if c_field else None,
+                )
+            )
+
+        # Qualification status evaluation
+        if "medicare_part_ab" in captured_fields and "age_in_range" in captured_fields:
+            if (
+                captured_fields["medicare_part_ab"] is True
+                and captured_fields["age_in_range"] is True
+            ):
+                q_status = "qualified"
+                final_disposition = "qualified_transferred"
+            else:
+                q_status = "disqualified"
+                final_disposition = "disqualified"
+        elif any(v is None for v in captured_fields.values()):
+            q_status = "incomplete"
+        else:
+            q_status = "qualified" if captured_fields else "in_progress"
+
+        return DataResponse(
+            data=ScriptSimulationResultDTO(
+                node_path=node_path,
+                captured_fields=captured_fields,
+                qualification_status=q_status,
+                compliance_unsatisfied=compliance_unsatisfied,
+                steps=steps,
+                spoken_prompts=spoken_prompts,
+                final_disposition=final_disposition,
+                completed=True,
+            )
+        )
+
+    # 2. Legacy input-map fallback graph walk
+    curr_node_id = ver.entry_node_id
     inputs_map = {inp.node_id: inp for inp in payload.inputs}
     step_num = 1
     visited = set()
 
     while curr_node_id and curr_node_id in nodes_map and curr_node_id not in visited:
         visited.add(curr_node_id)
+        node_path.append(curr_node_id)
         node = nodes_map[curr_node_id]
         prompt = node.get("prompt", "")
         spoken_prompts.append(prompt)
@@ -846,13 +1033,12 @@ async def simulate_version(
         for tr in transitions:
             when = tr.get("when", "always")
             matched = False
-            if when == "always":
-                matched = True
-            elif when in ("yes", "no") and user_resp and user_resp.lower() == when:
-                matched = True
-            elif when == "no_response" and inp and inp.no_response:
-                matched = True
-            elif when == "expression" and user_resp:
+            if (
+                when == "always"
+                or (when in ("yes", "no") and user_resp and user_resp.lower() == when)
+                or (when == "no_response" and inp and inp.no_response)
+                or (when == "expression" and user_resp)
+            ):
                 matched = True
 
             if matched:
@@ -886,9 +1072,14 @@ async def simulate_version(
 
     return DataResponse(
         data=ScriptSimulationResultDTO(
+            node_path=node_path,
+            captured_fields=captured_fields,
+            qualification_status="qualified"
+            if final_disposition == "qualified_transferred"
+            else "in_progress",
+            compliance_unsatisfied=compliance_unsatisfied,
             steps=steps,
             spoken_prompts=spoken_prompts,
-            captured_fields=captured_fields,
             final_disposition=final_disposition,
             completed=completed or (curr_node_id not in nodes_map),
         )
@@ -906,19 +1097,24 @@ async def list_approval_queue(
     raw_items, total = await repository.list_approval_queue(db, page, page_size)
     dtos = []
     for ver, script in raw_items:
-        dtos.append({
-            "id": f"appr-{ver.id.hex[:6]}",
-            "scriptId": str(script.id),
-            "scriptName": script.name,
-            "version": f"v{ver.version}.0",
-            "versionNumber": ver.version,
-            "versionId": str(ver.id),
-            "author": "Bilal Satti",
-            "submittedAt": ver.submitted_at.strftime("%Y-%m-%d %H:%M") if ver.submitted_at else ver.created_at.strftime("%Y-%m-%d %H:%M"),
-            "complianceScore": "100%",
-            "diffSummary": ver.change_note or "Updated conversational nodes and prompts",
-            "status": "pending_review",
-        })
+        dtos.append(
+            {
+                "id": f"appr-{ver.id.hex[:6]}",
+                "scriptId": str(script.id),
+                "scriptName": script.name,
+                "version": f"v{ver.version}.0",
+                "versionNumber": ver.version,
+                "versionId": str(ver.id),
+                "author": "Bilal Satti",
+                "submittedAt": ver.submitted_at.strftime("%Y-%m-%d %H:%M")
+                if ver.submitted_at
+                else ver.created_at.strftime("%Y-%m-%d %H:%M"),
+                "complianceScore": "100%",
+                "diffSummary": ver.change_note
+                or "Updated conversational nodes and prompts",
+                "status": "pending_review",
+            }
+        )
 
     total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
     meta = PagedMeta(

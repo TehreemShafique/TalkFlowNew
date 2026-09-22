@@ -5,6 +5,7 @@ that the workers' audit module owns.  Uses the shared read/write projection in
 ``packages.db.models.audit_log_table``; the physical table is created by that
 module's migration.
 """
+
 from __future__ import annotations
 
 import uuid

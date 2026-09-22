@@ -9,10 +9,13 @@ exist here so the ``recordings`` module can JOIN to build the dashboard payload
 without reaching into another module's repository (Rule R3); the tables
 themselves are created by their owning module's migrations.
 """
+
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -46,12 +49,11 @@ from app.packages.contracts.enums import (
     ImportJobStatus,
     LeadStatus,
     RecordingStatus,
-    ScriptNodeType,
     ScriptStatus,
     StorageProvider,
     UserStatus,
 )
-from app.packages.db.base import Base, utc_now, uuid7
+from app.packages.db.base import BareBase, Base, utc_now, uuid7
 
 # ``text`` (the column) shadows sqlalchemy.text inside TranscriptTurn; this
 # alias keeps the function reachable there.
@@ -155,7 +157,9 @@ class CallRecording(Base):
         return self.status == RecordingStatus.PURGED.value
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        return f"<CallRecording id={self.id} call_id={self.call_id} status={self.status}>"
+        return (
+            f"<CallRecording id={self.id} call_id={self.call_id} status={self.status}>"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +210,9 @@ class User(Base):
         primary_key=True,
         default=uuid7,
     )
-    email: Mapped[str] = mapped_column(String(254), unique=True, index=True, nullable=False)
+    email: Mapped[str] = mapped_column(
+        String(254), unique=True, index=True, nullable=False
+    )
     username: Mapped[str | None] = mapped_column(String(120))
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     collaborator_pin: Mapped[str | None] = mapped_column(String(255))
@@ -416,7 +422,9 @@ class ScriptActivation(Base):
         Uuid(as_uuid=True), ForeignKey("scripts.id", ondelete="CASCADE"), nullable=False
     )
     script_version_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("script_versions.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True),
+        ForeignKey("script_versions.id", ondelete="CASCADE"),
+        nullable=False,
     )
     campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE")
@@ -511,9 +519,7 @@ class Campaign(Base):
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (
-        Index("ix_campaigns_status", "status"),
-    )
+    __table_args__ = (Index("ix_campaigns_status", "status"),)
 
     @property
     def status_enum(self) -> CampaignStatus:
@@ -559,7 +565,9 @@ class CampaignVicidialList(Base):
         server_default=text("clock_timestamp()"),
     )
 
-    campaign: Mapped[Campaign] = relationship("Campaign", back_populates="vicidial_lists")
+    campaign: Mapped[Campaign] = relationship(
+        "Campaign", back_populates="vicidial_lists"
+    )
 
     __table_args__ = (
         UniqueConstraint(
@@ -591,6 +599,9 @@ class Lead(Base):
         primary_key=True,
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
+    )
+    external_key: Mapped[str | None] = mapped_column(
+        String(20), unique=True, index=True
     )
     first_name: Mapped[str | None] = mapped_column(String(120))
     last_name: Mapped[str | None] = mapped_column(String(120))
@@ -655,7 +666,9 @@ class Lead(Base):
     )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        return f"<Lead id={self.id} phone={self.phone_normalized!r} status={self.status}>"
+        return (
+            f"<Lead id={self.id} phone={self.phone_normalized!r} status={self.status}>"
+        )
 
 
 class LeadImportJob(Base):
@@ -724,7 +737,9 @@ class LeadImportJob(Base):
     )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        return f"<LeadImportJob id={self.id} file={self.file_name!r} status={self.status}>"
+        return (
+            f"<LeadImportJob id={self.id} file={self.file_name!r} status={self.status}>"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -959,7 +974,9 @@ class Call(Base):
     __table_args__ = (
         Index("ix_calls_tenant_id", "tenant_id"),
         Index("ix_calls_campaign_id_started_at", "campaign_id", "started_at"),
-        Index("ix_calls_script_version_id_started_at", "script_version_id", "started_at"),
+        Index(
+            "ix_calls_script_version_id_started_at", "script_version_id", "started_at"
+        ),
         Index("ix_calls_lead_id_started_at", "lead_id", "started_at"),
         Index("ix_calls_vicidial_call_id", "vicidial_call_id"),
         # Rule 2 (idempotent open): one live channel == one call.  Unique here
@@ -981,7 +998,7 @@ class Call(Base):
         return f"<Call id={self.id} reference={self.reference!r} status={self.status}>"
 
 
-class TranscriptTurn(Base):
+class TranscriptTurn(BareBase):
     """A single AI Voice Bot transcript line with timing + confidence."""
 
     __tablename__ = "transcript_turns"
@@ -1013,12 +1030,6 @@ class TranscriptTurn(Base):
     tsv: Mapped[str | None] = mapped_column(
         TSVECTOR, Computed("to_tsvector('english', text)", persisted=True)
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=utc_now,
-        server_default=_sa_text("clock_timestamp()"),
-    )
 
     __table_args__ = (
         UniqueConstraint("call_id", "seq", name="uq_transcript_turns_call_seq"),
@@ -1034,7 +1045,7 @@ class TranscriptTurn(Base):
         return f"<TranscriptTurn call_id={self.call_id} seq={self.seq} speaker={self.speaker!r}>"
 
 
-class CallEvent(Base):
+class CallEvent(BareBase):
     """One raw (deduplicated) event from the call's event stream."""
 
     __tablename__ = "call_events"
@@ -1059,7 +1070,9 @@ class CallEvent(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("call_id", "external_event_id", name="uq_call_events_call_external"),
+        UniqueConstraint(
+            "call_id", "external_event_id", name="uq_call_events_call_external"
+        ),
         Index("ix_call_events_call_id_event_ts", "call_id", "event_ts"),
     )
 
@@ -1067,7 +1080,7 @@ class CallEvent(Base):
         return f"<CallEvent call_id={self.call_id} type={self.type!r}>"
 
 
-class CallQualificationField(Base):
+class CallQualificationField(BareBase):
     """One captured qualification-evidence value for a call."""
 
     __tablename__ = "call_qualification_fields"
@@ -1098,7 +1111,7 @@ class CallQualificationField(Base):
         return f"<CallQualificationField call_id={self.call_id} field={self.field!r}>"
 
 
-class CallPerformance(Base):
+class CallPerformance(BareBase):
     """Per-call AI Voice Bot latency snapshot (milliseconds)."""
 
     __tablename__ = "call_performance"
@@ -1125,10 +1138,25 @@ class CallPerformance(Base):
         return f"<CallPerformance call_id={self.call_id}>"
 
 
-class CallNodePath(Base):
+class CallNodePath(BareBase):
     """The script node sequence a call traversed (script-path tab)."""
 
     __tablename__ = "call_node_path"
+
+    __mapper_args__: Mapping[str, Any] = {
+        "include_properties": [
+            "id",
+            "call_id",
+            "seq",
+            "node_id",
+            "node_type",
+            "node_name",
+            "entered_at",
+            "exited_at",
+            "transition_taken",
+            "meta",
+        ]
+    }
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -1148,9 +1176,7 @@ class CallNodePath(Base):
     transition_taken: Mapped[str | None] = mapped_column(String(64))
     meta: Mapped[dict | None] = mapped_column(JSONB)
 
-    __table_args__ = (
-        Index("ix_call_node_path_call_id_seq", "call_id", "seq"),
-    )
+    __table_args__ = (Index("ix_call_node_path_call_id_seq", "call_id", "seq"),)
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<CallNodePath call_id={self.call_id} node_id={self.node_id!r}>"
@@ -1169,13 +1195,23 @@ calls_table = Table(
     Column("id", Uuid(as_uuid=True), primary_key=True),
     Column("tenant_id", String(36), nullable=True),
     Column("started_at", DateTime(timezone=True)),
+    Column("answered_at", DateTime(timezone=True)),
+    Column("ended_at", DateTime(timezone=True)),
     Column("duration_seconds", Integer),
+    Column("talk_time_seconds", Integer),
     Column("disposition", String(32)),
+    Column("status", String(32)),
     Column("qualification_status", String(32)),
     Column("disqualification_reason", String(64)),
+    Column("transfer_status", String(32)),
+    Column("qa_status", String(32)),
+    Column("qa_score", Float),
+    Column("agent_alias_used", String(64)),
     Column("lead_id", Uuid(as_uuid=True)),
     Column("campaign_id", Uuid(as_uuid=True)),
     Column("verifier_id", Uuid(as_uuid=True)),
+    Column("script_id", Uuid(as_uuid=True)),
+    Column("script_version_id", Uuid(as_uuid=True)),
 )
 
 leads_table = Table(
@@ -1249,7 +1285,12 @@ call_transcripts_table = Table(
 qa_reviews_table = Table(
     "qa_reviews",
     _shared,
-    Column("id", Uuid(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "id",
+        Uuid(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    ),
     Column("call_id", Uuid(as_uuid=True), nullable=False),
     Column("recording_id", Uuid(as_uuid=True), nullable=True),
     Column("status", String(32)),
@@ -1285,16 +1326,122 @@ audit_log_table = Table(
 outbox_table = Table(
     "outbox",
     _shared,
-    Column("id", Uuid(as_uuid=True), server_default=text("gen_random_uuid()"), primary_key=True),
+    Column(
+        "id",
+        Uuid(as_uuid=True),
+        server_default=text("gen_random_uuid()"),
+        primary_key=True,
+    ),
     Column("aggregate_type", String(64)),
     Column("aggregate_id", String(64)),
     Column("channel", String(96)),
     Column("event_type", String(96)),
+    Column("seq", BigInteger),
     Column("payload", JSON),
     Column("created_at", DateTime(timezone=True), server_default=text("now()")),
     Column("dispatched_at", DateTime(timezone=True)),
     Column("attempts", Integer, server_default=text("0")),
 )
+
+transfers_table = Table(
+    "transfers",
+    _shared,
+    Column(
+        "id",
+        Uuid(as_uuid=True),
+        server_default=text("gen_random_uuid()"),
+        primary_key=True,
+    ),
+    Column("call_id", Uuid(as_uuid=True), ForeignKey("calls.id", ondelete="SET NULL")),
+    Column("lead_id", Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL")),
+    Column(
+        "campaign_id",
+        Uuid(as_uuid=True),
+        ForeignKey("campaigns.id", ondelete="SET NULL"),
+    ),
+    Column("from_agent_id", String(120)),
+    Column("verifier_id", String(120)),
+    Column("verifier_group_id", String(120)),
+    Column("status", String(48), nullable=False, server_default=text("'initiated'")),
+    Column("ring_timeout_seconds", Integer, nullable=False, server_default=text("20")),
+    Column(
+        "initiated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column("bridged_at", DateTime(timezone=True)),
+    Column("ended_at", DateTime(timezone=True)),
+    Column("failure_reason", String(255)),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+
+class Transfer(Base):
+    """ORM class for transfers table."""
+
+    __tablename__ = "transfers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    call_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("calls.id", ondelete="SET NULL")
+    )
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL")
+    )
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL")
+    )
+    from_agent_id: Mapped[str | None] = mapped_column(String(120))
+    verifier_id: Mapped[str | None] = mapped_column(String(120))
+    verifier_group_id: Mapped[str | None] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(
+        String(48),
+        nullable=False,
+        default="initiated",
+        server_default=text("'initiated'"),
+    )
+    ring_timeout_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=20, server_default=text("20")
+    )
+    initiated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        server_default=text("now()"),
+    )
+    bridged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_reason: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        server_default=text("now()"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        server_default=text("now()"),
+    )
+
 
 retention_policies_table = Table(
     "retention_policies",
@@ -1303,3 +1450,410 @@ retention_policies_table = Table(
     Column("name", String(120)),
     Column("audio_days", Integer),
 )
+
+
+call_performance_table = Table(
+    "call_performance",
+    _shared,
+    Column("call_id", Uuid(as_uuid=True), primary_key=True),
+    Column("llm_provider", String(32)),
+    Column("total_turn_ms", Float),
+)
+
+
+# ---------------------------------------------------------------------------
+# Analytics pre-aggregation tables (TalkFlow §13.1, STEP 39 rollups).
+#
+# Written ONLY by the 60-second incremental rollup worker; read ONLY by the
+# analytics module.  No analytics endpoint may touch the raw `calls` table
+# (TalkFlow readiness gate / blueprint §14.4).  Every column is traced to one
+# metric in `docs/metrics.md`.  `tenant_id` mirrors Rule R5 scope so a tenant
+# scope never leaks another tenant's aggregates.
+# ---------------------------------------------------------------------------
+
+# Sentinel used in place of NULL dimension keys so composite primary keys are
+# idempotent under ON CONFLICT (Postgres treats NULL as distinct in UNIQUEs).
+AGG_UUID_UNSET = "00000000-0000-0000-0000-000000000000"
+AGG_LABEL_UNSET = "_unassigned"
+
+
+class AggCampaignDaily(BareBase):
+    """Daily per-campaign funnel (report: /analytics/campaigns)."""
+
+    __tablename__ = "agg_campaign_daily"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    total_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    answered: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    contacted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    transferred: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    verifier_accepted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    disqualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    avg_duration: Mapped[float | None] = mapped_column(Float)
+
+    __table_args__ = (Index("ix_agg_campaign_daily_date", "date"),)
+
+
+class AggScriptVersionDaily(BareBase):
+    """Daily script-version performance (report: /analytics/scripts)."""
+
+    __tablename__ = "agg_script_version_daily"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    script_version_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True
+    )
+    total_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    answered: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    contacted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    transferred: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    disqualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    avg_duration: Mapped[float | None] = mapped_column(Float)
+
+    __table_args__ = (Index("ix_agg_script_version_daily_date", "date"),)
+
+
+class AggSourceDaily(BareBase):
+    """Daily lead-source quality (report: /analytics/sources)."""
+
+    __tablename__ = "agg_source_daily"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    source: Mapped[str] = mapped_column(String(120), primary_key=True)
+    total_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    answered: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    contacted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    transferred: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    verifier_accepted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    disqualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+
+    __table_args__ = (Index("ix_agg_source_daily_date", "date"),)
+
+
+class AggBotDaily(BareBase):
+    """Daily per-agent-alias performance (report: /analytics/bot)."""
+
+    __tablename__ = "agg_bot_daily"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    agent_alias: Mapped[str] = mapped_column(String(64), primary_key=True)
+    total_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    answered: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    contacted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    transferred: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    avg_talk_time_seconds: Mapped[float | None] = mapped_column(Float)
+    avg_duration: Mapped[float | None] = mapped_column(Float)
+
+    __table_args__ = (Index("ix_agg_bot_daily_date", "date"),)
+
+
+class AggComplianceDaily(BareBase):
+    """Daily compliance signals by disqualification reason (report: /analytics/compliance).
+
+    One row per (campaign, reason).  ``reason`` is the recorded
+    ``disqualification_reason`` with ``_unassigned`` for calls that never
+    disqualified; ``disqualified=1`` distinguishes real disqualifications from
+    the compliant bucket that carries the day's totals.
+    """
+
+    __tablename__ = "agg_compliance_daily"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    reason: Mapped[str] = mapped_column(String(64), primary_key=True)
+    total_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    answered: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    contacted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    disqualified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    opted_out: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qa_autofail: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+
+    __table_args__ = (Index("ix_agg_compliance_daily_date", "date"),)
+
+
+class AggDashboardCounters(BareBase):
+    """Single-row-per-tenant live counters for the dashboard headline strip.
+
+    ``captured_at`` is the stamp of the rollup pass that last wrote the row;
+    the row itself is UPSERTed on tenant_id so the /summary endpoint reads one
+    row with no range arithmetic for the counters.
+    """
+
+    __tablename__ = "agg_dashboard_counters"
+
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    total_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    calls_today: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    answered_today: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    qualified_today: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    active_campaigns: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    enabled_scripts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    suppression_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    live_calls: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+
+
+class AggRollupWatermark(BareBase):
+    """Persistent watermark for the 60-second incremental rollup (STEP 39).
+
+    A row per (tenant_id, aggregate_name) holding the latest ``started_at``
+    cutoff already folded into that aggregate, so re-runs never double count
+    and late-arriving rows whose ``started_at`` is before the watermark are
+    corrected only by a manual backfill (idempotent by ON CONFLICT).
+    """
+
+    __tablename__ = "agg_rollup_watermark"
+
+    tenant_id: Mapped[str | None] = mapped_column(String(36), primary_key=True)
+    aggregate_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    watermark: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 9: QA, Alerts, Integrations, Notifications ORM Models
+# ---------------------------------------------------------------------------
+
+class QAScorecard(BareBase):
+    """Template for QA reviews (Step 49)."""
+
+    __tablename__ = "qa_scorecards"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    version: Mapped[str] = mapped_column(String(20), nullable=False, default="v1.0")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class QACriterion(BareBase):
+    """Specific checklist item within a QA scorecard."""
+
+    __tablename__ = "qa_scorecard_criteria"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    scorecard_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("qa_scorecards.id", ondelete="CASCADE"), nullable=False
+    )
+    category: Mapped[str] = mapped_column(String(60), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    weight: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    auto_fail: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class QAReview(BareBase):
+    """QA evaluation record for a call."""
+
+    __tablename__ = "qa_reviews"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    call_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("calls.id", ondelete="CASCADE"), nullable=False
+    )
+    recording_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("call_recordings.id", ondelete="SET NULL")
+    )
+    scorecard_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("qa_scorecards.id"), nullable=False
+    )
+    reviewer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    total_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    auto_failed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class QAReviewScore(BareBase):
+    """Score per criterion in a QA review."""
+
+    __tablename__ = "qa_review_scores"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    review_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("qa_reviews.id", ondelete="CASCADE"), nullable=False
+    )
+    criterion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("qa_scorecard_criteria.id"), nullable=False
+    )
+    score_value: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    auto_failed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class AlertItem(BareBase):
+    """System alert log (Step 51)."""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(String(80), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="warning")
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    resource_type: Mapped[str | None] = mapped_column(String(60))
+    resource_id: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id")
+    )
+
+
+class IntegrationItem(BareBase):
+    """Integration configuration card (Step 51)."""
+
+    __tablename__ = "integrations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    type: Mapped[str] = mapped_column(String(60), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="configured")
+    config: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class NotificationItem(BareBase):
+    """User and system notification log (Step 51)."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    type: Mapped[str] = mapped_column(String(40), nullable=False, default="info")
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )

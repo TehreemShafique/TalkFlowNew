@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import logo from "../../../public/logo2.png";
+import logoDark from "../../../public/logo-dark.png";
+import logoLight from "../../../public/logo-light.png";
 import {
   LayoutDashboard,
   Megaphone,
@@ -41,9 +42,10 @@ import {
   UserCheck,
   History,
   X,
+  PanelLeftClose,
 } from "lucide-react";
 import { NAVIGATION_CONFIG, getRoleKey } from "@/config/navigation";
-import { useAuth } from "@/context";
+import { useAuth, useTheme } from "@/context";
 
 const ICON_MAP = {
   LayoutDashboard,
@@ -86,8 +88,11 @@ export default function Sidebar({
   onNavigate,
   isMobileOpen,
   onCloseMobile,
+  isCollapsed,
+  onToggleCollapse,
 }) {
   const { role, user } = useAuth();
+  const { isDark } = useTheme();
   const rawRole = user?.role || user?.type || role || "MASTER_ADMIN";
   const roleKey = getRoleKey(rawRole);
 
@@ -141,14 +146,14 @@ export default function Sidebar({
   }));
 
   const sidebarContent = (
-    <div className="flex h-full flex-col border-r border-neutral-200 bg-white text-neutral-700 transition-all duration-200 dark:border-[#1a1a1a] dark:bg-[#09090b] dark:text-neutral-300">
+    <div className="flex h-full flex-col border-r border-neutral-200 bg-white text-neutral-700 transition-all duration-200 dark:border-[#141414] dark:bg-[#000000] dark:text-neutral-300">
       {/* Brand Header */}
-      <div className="flex items-center justify-between border-b border-neutral-200 p-4 px-5 dark:border-[#18181b] bg-neutral-50/50 dark:bg-transparent">
-        <div className="flex items-center bg-white dark:bg-white/95 rounded-lg px-2.5 py-1 shadow-xs border border-neutral-200 dark:border-transparent">
+      <div className="flex h-16 items-center justify-center relative border-b border-neutral-200 px-2 py-2 dark:border-[#141414] bg-neutral-50/50 dark:bg-black overflow-hidden">
+        <div className="flex flex-1 items-center justify-center w-full h-full min-w-0">
           <Image
-            src={logo}
+            src={isDark ? logoDark : logoLight}
             alt="SmartBrains BPO Logo"
-            className="h-7 w-auto object-contain"
+            className="w-[94%] h-full max-h-14 object-contain object-center scale-x-110 origin-center transition-all duration-200"
             priority
           />
         </div>
@@ -158,9 +163,21 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onCloseMobile}
-            className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 lg:hidden"
+            className="absolute right-2 rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 lg:hidden"
           >
             <X className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Close Button for Desktop Sidebar Toggle (>= 1024px) */}
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title="Close Sidebar"
+            className="absolute right-2 rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-white hidden lg:flex items-center justify-center transition-colors"
+          >
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -369,7 +386,11 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop & Tablet Responsive Sidebar */}
-      <aside className="hidden lg:flex flex-col w-16 xl:w-64 shrink-0 min-h-screen transition-all duration-200">
+      <aside
+        className={`hidden lg:flex flex-col shrink-0 min-h-screen transition-all duration-300 ease-in-out ${
+          isCollapsed ? "w-0 overflow-hidden opacity-0 border-none pointer-events-none" : "w-16 xl:w-64 opacity-100"
+        }`}
+      >
         {sidebarContent}
       </aside>
 

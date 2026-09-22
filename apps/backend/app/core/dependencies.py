@@ -5,8 +5,10 @@ JWT carries only the email + jti) and checks the Redis revocation blacklist, so
 revoked sessions and status changes take effect immediately.  `require_permissions`
 implements Rule R4's explicit gate at the dependency layer.
 """
+
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
@@ -24,7 +26,7 @@ from app.core.redis import is_token_blacklisted
 from app.core.security import decode_access_token
 from app.packages.contracts.enums import UserStatus
 from app.packages.contracts.errors import NotAuthenticatedError, PermissionDeniedError
-from app.packages.db.models import User
+from app.packages.db.models import User, UserSession
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -38,7 +40,7 @@ def _extract_token(
     return request.cookies.get(settings.cookie_name)
 
 
-async def _fetch_user_by_email(db: AsyncSession, email: str) -> User | None:
+async def fetch_user_by_email(db: AsyncSession, email: str) -> User | None:
     result = await db.execute(
         select(User)
         .options(selectinload(User.roles))
@@ -50,7 +52,9 @@ async def _fetch_user_by_email(db: AsyncSession, email: str) -> User | None:
 async def require_auth(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)] = None,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(_bearer)
+    ] = None,
 ) -> UserContext:
     """Authenticate the principal; raise 401 when missing/invalid/revoked."""
     token = _extract_token(request, credentials)
@@ -75,7 +79,31 @@ async def require_auth(
             "auth.not_authenticated", message="Session has been revoked."
         )
 
-    user = await _fetch_user_by_email(db, sub)
+    # DB-backed session ledger verification
+    session_result = await db.execute(
+        select(UserSession).where(UserSession.token_id == jti)
+    )
+    user_session = session_result.scalar_one_or_none()
+    if user_session is None or user_session.revoked_at is not None:
+        raise NotAuthenticatedError(
+            "auth.not_authenticated", message="Session has been revoked or expired."
+        )
+
+    # Touch last_seen_at if more than 5 minutes have elapsed
+    now = datetime.now(UTC)
+    last_seen = user_session.last_seen_at
+    if (
+        last_seen is None
+        or (
+            last_seen.tzinfo is None
+            and now.replace(tzinfo=None) - last_seen > timedelta(minutes=5)
+        )
+        or (last_seen.tzinfo is not None and now - last_seen > timedelta(minutes=5))
+    ):
+        user_session.last_seen_at = now
+        await db.commit()
+
+    user = await fetch_user_by_email(db, sub)
     if not user or not user.is_active:
         raise NotAuthenticatedError(
             "auth.not_authenticated", message="User inactive or not found."
@@ -102,7 +130,9 @@ AuthDependency = Annotated[UserContext, Depends(require_auth)]
 def require_permissions(required_permissions: list[str]):
     """Dependency builder (Rule R4): assert the user holds every permission."""
 
-    async def checker(user: Annotated[UserContext, Depends(require_auth)]) -> UserContext:
+    async def checker(
+        user: Annotated[UserContext, Depends(require_auth)],
+    ) -> UserContext:
         missing = [p for p in required_permissions if p not in user.permissions]
         if missing:
             raise PermissionDeniedError(

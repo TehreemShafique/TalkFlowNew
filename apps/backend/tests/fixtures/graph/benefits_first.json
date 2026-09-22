@@ -1,0 +1,20 @@
+{
+  "entryId": "n_greeting",
+  "nodes": [
+    {
+      "id": "n_greeting",
+      "transitions": [{"nextNodeId": "n_benefits"}]
+    },
+    {
+      "id": "n_benefits",
+      "discussesBenefits": true,
+      "transitions": [{"nextNodeId": "n_disclaimer"}]
+    },
+    {
+      "id": "n_disclaimer",
+      "complianceRole": "tpmo_disclaimer",
+      "terminal": true,
+      "transitions": []
+    }
+  ]
+}

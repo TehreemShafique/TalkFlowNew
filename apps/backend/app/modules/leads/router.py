@@ -10,7 +10,7 @@ param and 422s).
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,13 +21,16 @@ from app.core.dependencies import require_permissions
 from app.core.permissions import PERM_LEAD_EDIT, PERM_LEAD_IMPORT, PERM_LEAD_VIEW
 from app.modules.leads import service
 from app.modules.leads.schemas import (
+    BulkAssignRequest,
     ImportJobDTO,
     ImportUploadResponse,
+    LeadBatchDTO,
     LeadCreate,
     LeadDTO,
     LeadListQuery,
     LeadUpdate,
     MappingRequest,
+    UpdateBatchCampaignRequest,
 )
 from app.packages.contracts.base import DataResponse, PagedResponse
 
@@ -37,6 +40,33 @@ ViewGate = Annotated[UserContext, Depends(require_permissions([PERM_LEAD_VIEW]))
 EditGate = Annotated[UserContext, Depends(require_permissions([PERM_LEAD_EDIT]))]
 ImportGate = Annotated[UserContext, Depends(require_permissions([PERM_LEAD_IMPORT]))]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+
+
+@router.get("/batches", response_model=DataResponse[list[LeadBatchDTO]])
+async def list_lead_batches(actor: ViewGate, db: DbSession):
+    """List all imported lead batches/files with metadata."""
+    return await service.list_batches(db, actor)
+
+
+@router.patch("/batches/{batch_id}/campaign", response_model=DataResponse[dict[str, Any]])
+async def update_batch_campaign(
+    batch_id: uuid.UUID,
+    payload: UpdateBatchCampaignRequest,
+    actor: EditGate,
+    db: DbSession,
+):
+    """Assign or update the target campaign for an imported lead batch."""
+    return await service.update_batch_campaign(db, actor, batch_id, payload.campaign_id)
+
+
+@router.delete("/batches/{batch_id}", response_model=DataResponse[dict[str, Any]])
+async def delete_lead_batch(
+    batch_id: uuid.UUID,
+    actor: EditGate,
+    db: DbSession,
+):
+    """Delete an imported lead batch file and all its associated lead records from DB."""
+    return await service.delete_batch(db, actor, batch_id)
 
 
 # ---------------------------------------------------------------------------
@@ -56,9 +86,16 @@ async def save_import_mapping(
 
 
 @router.post("/import/{job_id}/commit", response_model=DataResponse[ImportJobDTO])
-async def commit_import(job_id: uuid.UUID, actor: ImportGate, db: DbSession):
-    """STEP 5: import the surviving rows (idempotent - safe to retry)."""
-    return await service.commit_import(db, actor, job_id)
+async def commit_import(
+    job_id: uuid.UUID,
+    actor: ImportGate,
+    db: DbSession,
+    idempotency_key: Annotated[str | None, Depends(lambda: None)] = None,
+):
+    """STEP 5: import the surviving rows in batches of 1000 (Step 28)."""
+    return await service.commit_import(
+        db, actor, job_id, idempotency_key=idempotency_key
+    )
 
 
 @router.get("/import/{job_id}/errors")
@@ -96,9 +133,17 @@ async def list_leads(
     return await service.list_leads(db, actor, query)
 
 
-@router.post("", response_model=DataResponse[LeadDTO], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=DataResponse[LeadDTO], status_code=status.HTTP_201_CREATED
+)
 async def create_lead(payload: LeadCreate, actor: EditGate, db: DbSession):
     return await service.create_lead(db, actor, payload)
+
+
+@router.post("/bulk-assign", response_model=DataResponse[dict[str, Any]])
+async def bulk_assign_leads(payload: BulkAssignRequest, actor: EditGate, db: DbSession):
+    """Bulk assign leads to a campaign or user (Step 27)."""
+    return await service.bulk_assign_leads(db, actor, payload)
 
 
 @router.get("/{lead_id}", response_model=DataResponse[LeadDTO])

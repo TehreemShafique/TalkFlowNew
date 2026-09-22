@@ -4,7 +4,7 @@ import { ListFilter, UploadCloud, ShieldAlert } from "lucide-react";
 
 export default function LeadsSubtabsBar({ viewMode, onNavigate }) {
   const subtabs = [
-    { id: "list", label: "Lead list", icon: ListFilter },
+    { id: "all", label: "Lead List", icon: ListFilter },
     { id: "import", label: "Import wizard", icon: UploadCloud },
     { id: "suppression", label: "Suppression list (DNC)", icon: ShieldAlert },
   ];
@@ -13,13 +13,13 @@ export default function LeadsSubtabsBar({ viewMode, onNavigate }) {
     <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-1.5 shadow-xs">
       {subtabs.map((tab) => {
         const Icon = tab.icon;
-        const isActive = viewMode === tab.id || (viewMode === "list" && tab.id === "list");
+        const isActive = tab.id === "all" ? (viewMode === "all" || viewMode === "list") : viewMode === tab.id;
 
         return (
           <button
             key={tab.id}
             type="button"
-            onClick={() => onNavigate(tab.id === "list" ? null : tab.id)}
+            onClick={() => onNavigate(tab.id)}
             className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
               isActive
                 ? "bg-blue-600 text-white dark:bg-[#253246] dark:text-blue-300 shadow-xs"

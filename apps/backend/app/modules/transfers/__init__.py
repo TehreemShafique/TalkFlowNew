@@ -1,1 +1,5 @@
-# transfers __init__.py
+"""Transfers module."""
+
+from app.modules.transfers.router import router
+
+__all__ = ["router"]

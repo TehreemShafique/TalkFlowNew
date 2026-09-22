@@ -133,7 +133,9 @@ def _parse_csv_rows(
                 "phone": phone,
                 "reason": reason,
                 "source": (row.get(field_map.get("source", "")) or "").strip() or None,
-                "expires_at": parse_expires_at(row.get(field_map.get("expires_at", ""))),
+                "expires_at": parse_expires_at(
+                    row.get(field_map.get("expires_at", ""))
+                ),
                 "evidence_reference": (
                     (row.get(field_map.get("evidence_reference", "")) or "").strip()
                     or None
@@ -177,17 +179,54 @@ async def check_phone(
     session: AsyncSession, user: UserContext, phone: str
 ) -> DataResponse[SuppressionCheckDTO]:
     """Pre-dial lookup: is this number blocked, and why (spec 19.4 acceptance)."""
+    from app.core.redis import get_redis
     from app.packages.phone import normalize_us_phone
 
     normalized = normalize_us_phone(phone)
     if normalized is None:
         raise SuppressionInvalidPhoneError(details={"phone": mask_phone(phone)})
 
+    cache_key = f"cp:suppression:{normalized}"
+    try:
+        redis_client = get_redis()
+        cached = await redis_client.get(cache_key)
+        if cached:
+            cached_text = cached.decode() if isinstance(cached, bytes) else cached
+            if cached_text == "clear":
+                return DataResponse[SuppressionCheckDTO](
+                    data=SuppressionCheckDTO(suppressed=False)
+                )
+            parts = cached_text.split(":", 2)
+            if len(parts) >= 3 and parts[0] == "suppressed":
+                return DataResponse[SuppressionCheckDTO](
+                    data=SuppressionCheckDTO(
+                        suppressed=True,
+                        reason=SuppressionReason(parts[1]),
+                        entry_id=uuid.UUID(parts[2]),
+                    )
+                )
+    except Exception:  # noqa: BLE001, S110 - cache is best-effort
+        pass
+
     entry = await repo.get_active_entry_by_phone(session, normalized)
     if entry is None:
+        try:
+            redis_client = get_redis()
+            await redis_client.setex(cache_key, 300, "clear")
+        except Exception:  # noqa: BLE001, S110 - cache is best-effort
+            pass
         return DataResponse[SuppressionCheckDTO](
             data=SuppressionCheckDTO(suppressed=False)
         )
+
+    try:
+        redis_client = get_redis()
+        await redis_client.setex(
+            cache_key, 300, f"suppressed:{entry.reason}:{entry.id}"
+        )
+    except Exception:  # noqa: BLE001, S110 - cache is best-effort
+        pass
+
     return DataResponse[SuppressionCheckDTO](
         data=SuppressionCheckDTO(
             suppressed=True,
@@ -204,6 +243,7 @@ async def check_phone(
 async def add_entry(
     session: AsyncSession, user: UserContext, payload: SuppressionEntryCreate
 ) -> DataResponse[SuppressionEntryDTO]:
+    from app.core.redis import get_redis
     from app.packages.phone import normalize_us_phone
 
     phone = normalize_us_phone(payload.phone)
@@ -225,6 +265,17 @@ async def add_entry(
     )
     await repo.save_entry(session, entry)
     await repo.mark_leads_suppressed(session, [phone], payload.reason.value)
+
+    try:
+        redis_client = get_redis()
+        await redis_client.setex(
+            f"cp:suppression:{phone}",
+            300,
+            f"suppressed:{payload.reason.value}:{entry.id}",
+        )
+    except Exception:  # noqa: BLE001, S110 - cache is best-effort
+        pass
+
     await write_audit(
         session,
         actor_id=user.user_id,
@@ -242,9 +293,7 @@ async def add_entry(
         payload={"phone": phone, "reason": payload.reason.value},
     )
     await session.commit()
-    logger.info(
-        "suppression added", entry_id=str(entry.id), actor=str(user.user_id)
-    )
+    logger.info("suppression added", entry_id=str(entry.id), actor=str(user.user_id))
     return DataResponse[SuppressionEntryDTO](data=_to_dto(entry, mask=False))
 
 
@@ -252,12 +301,19 @@ async def remove_entry(
     session: AsyncSession, user: UserContext, entry_id: uuid.UUID
 ) -> DataResponse[SuppressionEntryDTO]:
     """Soft-delete an ACTIVE entry (removal is Master Admin only - R4 gate)."""
+    from app.core.redis import get_redis
+
     entry = await _load_entry(session, user, entry_id)
     now = datetime.now(UTC)
-    await repo.touch_entry(
-        session, entry, removed_at=now, removed_by=user.user_id
-    )
+    await repo.touch_entry(session, entry, removed_at=now, removed_by=user.user_id)
     await repo.clear_leads_suppressed(session, [entry.phone_normalized])
+
+    try:
+        redis_client = get_redis()
+        await redis_client.delete(f"cp:suppression:{entry.phone_normalized}")
+    except Exception:  # noqa: BLE001, S110 - cache is best-effort
+        pass
+
     await write_audit(
         session,
         actor_id=user.user_id,
@@ -275,9 +331,7 @@ async def remove_entry(
         payload={"phone": entry.phone_normalized},
     )
     await session.commit()
-    logger.info(
-        "suppression removed", entry_id=str(entry.id), actor=str(user.user_id)
-    )
+    logger.info("suppression removed", entry_id=str(entry.id), actor=str(user.user_id))
     return DataResponse[SuppressionEntryDTO](data=_to_dto(entry, mask=False))
 
 
@@ -316,7 +370,9 @@ async def import_csv(
 
     if valid:
         reasons = {row["reason"] for row in valid}
-        primary_reason = reasons.pop() if reasons else SuppressionReason.INTERNAL_DNC.value
+        primary_reason = (
+            reasons.pop() if reasons else SuppressionReason.INTERNAL_DNC.value
+        )
         await repo.mark_leads_suppressed(
             session, [row["phone"] for row in valid], primary_reason
         )
@@ -338,7 +394,12 @@ async def import_csv(
         resource_type="suppression_entries",
         resource_id=str(uuid.uuid4()),
         result=AuditResult.SUCCESS,
-        details={"total": total, "added": added, "duplicate": duplicate, "invalid": invalid},
+        details={
+            "total": total,
+            "added": added,
+            "duplicate": duplicate,
+            "invalid": invalid,
+        },
     )
     await publish_suppression_event(
         session,
@@ -347,9 +408,7 @@ async def import_csv(
         payload={"total": total, "added": added},
     )
     await session.commit()
-    logger.info(
-        "suppression import", added=added, duplicate=duplicate, invalid=invalid
-    )
+    logger.info("suppression import", added=added, duplicate=duplicate, invalid=invalid)
     return DataResponse[SuppressionImportResult](
         data=SuppressionImportResult(
             total=total, added=added, duplicate=duplicate, invalid=invalid

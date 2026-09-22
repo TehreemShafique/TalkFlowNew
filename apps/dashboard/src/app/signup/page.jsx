@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import logoDark from "../../../public/logo-dark.png";
 import { useAuth } from "@/context";
 import { Button, Input, LoadingSpinner } from "@/components/ui";
 import {
@@ -97,11 +99,14 @@ export default function SignupPage() {
       {/* Main Register Card */}
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-neutral-800 bg-[#0d0d0f]/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-all my-auto">
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/20">
-            <Headphones className="h-6 w-6" />
-          </div>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
+        <div className="flex flex-col items-center text-center mb-2">
+          <Image
+            src={logoDark}
+            alt="SmartBrains BPO Logo"
+            className="h-14 w-auto object-contain mb-3"
+            priority
+          />
+          <h1 className="text-xl font-bold tracking-tight text-white">
             TalkFlow Analytics
           </h1>
           <p className="mt-1 text-xs text-neutral-400">

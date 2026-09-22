@@ -26,6 +26,7 @@ Revision ID: b5c6d7e8f901
 Revises: 9f0a1b2c3d4e
 Create Date: 2026-09-18
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -38,7 +39,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # Stamps recorded at open (roadmap section 660).
-    op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS agent_alias_used VARCHAR(64)")
+    op.execute(
+        "ALTER TABLE calls ADD COLUMN IF NOT EXISTS agent_alias_used VARCHAR(64)"
+    )
     op.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS rule_set_version_id UUID")
 
     # Full-text transcript search (roadmap STEP 18).  The vector is a real

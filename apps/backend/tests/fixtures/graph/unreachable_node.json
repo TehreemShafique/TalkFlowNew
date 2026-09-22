@@ -1,0 +1,15 @@
+{
+  "entryId": "n_greeting",
+  "nodes": [
+    {
+      "id": "n_greeting",
+      "terminal": true,
+      "transitions": []
+    },
+    {
+      "id": "n_unreachable",
+      "terminal": true,
+      "transitions": []
+    }
+  ]
+}

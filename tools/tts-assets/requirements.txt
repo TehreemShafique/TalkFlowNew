@@ -1,5 +1,0 @@
-chatterbox-tts
-kokoro-onnx==0.6.1
-numpy>=1.26,<3
-soxr>=1.0,<2
-redis>=5,<7

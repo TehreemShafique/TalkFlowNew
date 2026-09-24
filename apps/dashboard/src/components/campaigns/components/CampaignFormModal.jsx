@@ -89,38 +89,7 @@ export default function CampaignFormModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-neutral-200 dark:border-neutral-800 pt-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="font-bold text-neutral-800 dark:text-neutral-200">
-              Answering Machine Detection (AMD)
-            </label>
-            <select
-              value={newAmd}
-              onChange={(e) => onNewAmdChange(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 dark:focus:border-neutral-600"
-            >
-              <option value="Enabled">Enabled</option>
-              <option value="Disabled">Disabled</option>
-            </select>
-          </div>
 
-          {newAmd === "Enabled" && (
-            <div className="flex flex-col gap-1.5">
-              <label className="font-bold text-neutral-800 dark:text-neutral-200">
-                AMD Machine Action
-              </label>
-              <select
-                value={newAmdSub}
-                onChange={(e) => onNewAmdSubChange(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 dark:focus:border-neutral-600"
-              >
-                <option value="Hangup">Hangup Machine Calls</option>
-                <option value="Route to Agent">Route to Agent</option>
-                <option value="Play Voicemail Drop">Play Voicemail Drop</option>
-              </select>
-            </div>
-          )}
-        </div>
 
         <div className="flex flex-col gap-2 border-t border-neutral-200 dark:border-neutral-800 pt-4">
           <label className="font-bold text-neutral-800 dark:text-neutral-200">

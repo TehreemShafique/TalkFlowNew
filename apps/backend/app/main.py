@@ -1,4 +1,4 @@
-"""TalkFlow Control Plane - FastAPI application entrypoint.
+"""TalkFlow Control Plane - FastAPI application entrypoint (reloaded).
 
 Wires the API v1 prefix, the auth / users_rbac / recordings / campaigns
 routers, the unified error envelope, tracing/cors middleware and structlog.  Auth-protected routes reject

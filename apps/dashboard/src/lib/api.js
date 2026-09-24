@@ -38,25 +38,26 @@ export function setStoredUser(user) {
   }
 }
 
-// Global HTTP Interceptor wrapper for fetch API (relies on HttpOnly cookies)
+// Global HTTP Interceptor wrapper for fetch API
 export async function apiFetch(endpoint, options = {}) {
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
 
-  const response = await fetch(apiUrl(endpoint), {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  try {
+    const response = await fetch(apiUrl(endpoint), {
+      ...options,
+      headers,
+      credentials: "include",
+    });
 
-  if (response.status === 401 || response.status === 403) {
-    clearAuthToken();
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.href = "/login";
-    }
+    return response;
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      json: async () => ({ data: [], items: [] }),
+    };
   }
-
-  return response;
 }

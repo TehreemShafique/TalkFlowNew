@@ -219,16 +219,22 @@ async def update_job_campaign(
     await session.execute(stmt)
 
 
-async def delete_import_batch(session: AsyncSession, job_id: uuid.UUID) -> bool:
-    stmt = select(LeadImportJob).where(LeadImportJob.id == job_id)
-    job = (await session.execute(stmt)).scalar_one_or_none()
-    if not job:
-        return False
-    # Cascade delete associated leads imported in this file batch
+async def delete_import_batch(session: AsyncSession, batch_id_str: str) -> bool:
+    job = None
+    try:
+        job_uuid = uuid.UUID(batch_id_str)
+        stmt = select(LeadImportJob).where(LeadImportJob.id == job_uuid)
+        job = (await session.execute(stmt)).scalar_one_or_none()
+    except Exception:
+        pass
+
+    source_val = job.file_name if job else batch_id_str
     await session.execute(
-        delete(Lead).where(or_(Lead.source == str(job_id), Lead.source == job.file_name))
+        delete(Lead).where(or_(Lead.source == batch_id_str, Lead.source == source_val))
     )
-    # Delete the batch record
-    await session.delete(job)
-    await session.flush()
+
+    if job:
+        await session.delete(job)
+        await session.flush()
+
     return True

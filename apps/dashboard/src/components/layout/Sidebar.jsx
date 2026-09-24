@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
-import logoDark from "../../../public/logo-dark.png";
-import logoLight from "../../../public/logo-light.png";
+import { Logo } from "./Logo";
 import {
   LayoutDashboard,
   Megaphone,
@@ -42,7 +40,6 @@ import {
   UserCheck,
   History,
   X,
-  PanelLeftClose,
 } from "lucide-react";
 import { NAVIGATION_CONFIG, getRoleKey } from "@/config/navigation";
 import { useAuth, useTheme } from "@/context";
@@ -148,14 +145,9 @@ export default function Sidebar({
   const sidebarContent = (
     <div className="flex h-full flex-col border-r border-neutral-200 bg-white text-neutral-700 transition-all duration-200 dark:border-[#141414] dark:bg-[#000000] dark:text-neutral-300">
       {/* Brand Header */}
-      <div className="flex h-16 items-center justify-center relative border-b border-neutral-200 px-2 py-2 dark:border-[#141414] bg-neutral-50/50 dark:bg-black overflow-hidden">
-        <div className="flex flex-1 items-center justify-center w-full h-full min-w-0">
-          <Image
-            src={isDark ? logoDark : logoLight}
-            alt="SmartBrains BPO Logo"
-            className="w-[94%] h-full max-h-14 object-contain object-center scale-x-110 origin-center transition-all duration-200"
-            priority
-          />
+      <div className="flex h-16 items-center justify-center relative border-b border-neutral-200 px-3 py-2 dark:border-[#141414] bg-neutral-50/50 dark:bg-black overflow-hidden text-center">
+        <div className="flex flex-1 items-center justify-center text-center w-full h-full min-w-0 mx-auto">
+          <Logo compact theme={isDark ? "dark" : "light"} className="mx-auto" />
         </div>
 
         {/* Close Button for Overlay Drawer (< 1024px) */}
@@ -166,18 +158,6 @@ export default function Sidebar({
             className="absolute right-2 rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 lg:hidden"
           >
             <X className="h-4 w-4" />
-          </button>
-        )}
-
-        {/* Close Button for Desktop Sidebar Toggle (>= 1024px) */}
-        {onToggleCollapse && (
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            title="Close Sidebar"
-            className="absolute right-2 rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-white hidden lg:flex items-center justify-center transition-colors"
-          >
-            <PanelLeftClose className="h-4 w-4" />
           </button>
         )}
       </div>

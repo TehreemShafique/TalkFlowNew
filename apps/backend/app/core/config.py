@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Seed the super-admin on first boot.
     seed_admin_email: str = "admin@phonova.io"
-    seed_admin_password: str = "admin123"
+    seed_admin_password: str = "e4GLTRrHlBFyFy47"
     seed_admin_full_name: str = "Admin MPN"
 
     storage_provider: str = "local"

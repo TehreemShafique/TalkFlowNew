@@ -1,0 +1,27 @@
+INFO:     127.0.0.1:52591 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56413 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56413 - "GET /api/v1/recordings?page=1&pageSize=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57411 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57411 - "GET /api/v1/recordings?page=1&pageSize=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57414 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57414 - "GET /api/v1/recordings?page=1&pageSize=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57414 - "GET /api/v1/recordings/cd8a2706-c1d3-45b7-8a3b-abfc039fc7c6/stream HTTP/1.1" 200 OK
+2026-09-16T21:56:44.966885Z [error    ] unhandled error                path=/api/v1/recordings/stream/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoic3RyZWFtIiwianRpIjoiMjAzNjNmNzVkNTBiNDUyMjlkNTBlNGRmYjI3ZTZiZjgiLCJpYXQiOjE3ODk1OTU4MDQsImV4cCI6MTc4OTU5NjEwNH0.wP08tTCkRyDbVnje1kpYl1bvvFi15eZoWqkqrNnAurQ trace_id=6f8e4184c252456bb80db263888f59e7
+INFO:     127.0.0.1:57414 - "GET /api/v1/recordings/stream/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoic3RyZWFtIiwianRpIjoiMjAzNjNmNzVkNTBiNDUyMjlkNTBlNGRmYjI3ZTZiZjgiLCJpYXQiOjE3ODk1OTU4MDQsImV4cCI6MTc4OTU5NjEwNH0.wP08tTCkRyDbVnje1kpYl1bvvFi15eZoWqkqrNnAurQ HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:57415 - "GET /api/v1/recordings/cd8a2706-c1d3-45b7-8a3b-abfc039fc7c6/download HTTP/1.1" 200 OK
+2026-09-16T21:56:53.843723Z [error    ] unhandled error                path=/api/v1/recordings/download/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoiZG93bmxvYWQiLCJqdGkiOiJjYmY1NmNjZDYxZjY0YzJkODBjYmE3YTllY2NlMWUwNCIsImlhdCI6MTc4OTU5NTgxMywiZXhwIjoxNzg5NTk2NzEzfQ.TBKS9jaO-oqoFw_VFEYjdvhcRlv8ORZEPiUmTSd7A9o trace_id=4354021f4b1746ff8615cfae28180a9b
+INFO:     127.0.0.1:57415 - "GET /api/v1/recordings/download/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoiZG93bmxvYWQiLCJqdGkiOiJjYmY1NmNjZDYxZjY0YzJkODBjYmE3YTllY2NlMWUwNCIsImlhdCI6MTc4OTU5NTgxMywiZXhwIjoxNzg5NTk2NzEzfQ.TBKS9jaO-oqoFw_VFEYjdvhcRlv8ORZEPiUmTSd7A9o HTTP/1.1" 500 Internal Server Error
+2026-09-16T21:57:02.031501Z [warning  ] domain error                   code=recording.download_unauthorized path=/api/v1/recordings/download/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoiZG93bmxvYWQiLCJqdGkiOiJjYmY1NmNjZDYxZjY0YzJkODBjYmE3YTllY2NlMWUwNCIsImlhdCI6MTc4OTU5NTgxMywiZXhwIjoxNzg5NTk2NzEzfQ.TBKS9jaO-oqoFw_VFEYjdvhcRlv8ORZEPiUmTSd7A9o status=403
+INFO:     127.0.0.1:57416 - "GET /api/v1/recordings/download/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoiZG93bmxvYWQiLCJqdGkiOiJjYmY1NmNjZDYxZjY0YzJkODBjYmE3YTllY2NlMWUwNCIsImlhdCI6MTc4OTU5NTgxMywiZXhwIjoxNzg5NTk2NzEzfQ.TBKS9jaO-oqoFw_VFEYjdvhcRlv8ORZEPiUmTSd7A9o HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:57416 - "POST /api/v1/recordings/161e7d8d-c2ab-4c77-9060-47d57238530f/qa-audit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57418 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57418 - "GET /api/v1/recordings?page=1&pageSize=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57418 - "GET /api/v1/recordings/cd8a2706-c1d3-45b7-8a3b-abfc039fc7c6/stream HTTP/1.1" 200 OK
+2026-09-16T21:57:18.889511Z [error    ] unhandled error                path=/api/v1/recordings/stream/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoic3RyZWFtIiwianRpIjoiYjg0NjNjYzA2ODhkNGE0NDg0MWZiNWViMTU0MTNiYTkiLCJpYXQiOjE3ODk1OTU4MzgsImV4cCI6MTc4OTU5NjEzOH0.duKUpBdEgtx9pEMN4aqtXqpY8T5E__B8z6Z6JDRiJo8 trace_id=eb789649a3c54571a087e61134a3d544
+INFO:     127.0.0.1:57418 - "GET /api/v1/recordings/stream/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDhhMjcwNi1jMWQzLTQ1YjctOGEzYi1hYmZjMDM5ZmM3YzYiLCJwdXJwb3NlIjoic3RyZWFtIiwianRpIjoiYjg0NjNjYzA2ODhkNGE0NDg0MWZiNWViMTU0MTNiYTkiLCJpYXQiOjE3ODk1OTU4MzgsImV4cCI6MTc4OTU5NjEzOH0.duKUpBdEgtx9pEMN4aqtXqpY8T5E__B8z6Z6JDRiJo8 HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:57421 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57421 - "GET /api/v1/recordings?page=1&pageSize=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57423 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57423 - "GET /api/v1/recordings?page=1&pageSize=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57423 - "GET /api/v1/recordings/cd8a2706-c1d3-45b7-8a3b-abfc039fc7c6/stream HTTP/1.1" 200 OK

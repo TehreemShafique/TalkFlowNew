@@ -31,7 +31,11 @@ def main():
                 utterances.append(row)
                 
     random.seed(42)
-    selected = random.sample(utterances, 20)
+    target_count = int(os.environ.get("CALL_COUNT", "500"))
+    if len(utterances) >= target_count:
+        selected = random.sample(utterances, target_count)
+    else:
+        selected = [random.choice(utterances) for _ in range(target_count)]
     
     print(f"Testing {len(selected)} live utterances via AudioSocket...")
     
@@ -39,7 +43,7 @@ def main():
     
     for i, item in enumerate(selected):
         wav_path = f"/app/scripts/test_set/{item['file']}"
-        print(f"[{i+1}/20] Streaming {wav_path} (Expected: {item['expected_text']})")
+        print(f"[{i+1}/{len(selected)}] Streaming {wav_path} (Expected: {item['expected_text']})")
         
         audio, sr = sf.read(wav_path)
         if sr == 16000:

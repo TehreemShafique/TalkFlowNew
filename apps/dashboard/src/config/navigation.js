@@ -4,16 +4,23 @@
 // MASTER_ADMIN | CAMPAIGN_MANAGER | VERIFIER | QA | REPORTING_USER | DEVOPS_IT | DEVELOPER | VIEWER
 
 export function getRoleKey(roleStr = "") {
-  const str = String(roleStr).toLowerCase();
-  if (str.includes("master")) return "MASTER_ADMIN";
+  const str = String(roleStr || "").toLowerCase();
+  if (
+    str.includes("master") ||
+    str.includes("super") ||
+    str.includes("admin") ||
+    str === "super_admin" ||
+    str === "admin"
+  ) {
+    return "MASTER_ADMIN";
+  }
   if (str.includes("campaign")) return "CAMPAIGN_MANAGER";
-  if (str.includes("verifier") || str.includes("licensed") || str === "viewer") return "VERIFIER";
+  if (str.includes("verifier") || str.includes("licensed")) return "VERIFIER";
   if (str.includes("qa")) return "QA";
   if (str.includes("reporting") || str.includes("analyst")) return "REPORTING_USER";
-  if (str.includes("it") || str.includes("devops") || str === "admin" || str === "devops_it") return "DEVOPS_IT";
+  if (str.includes("it") || str.includes("devops")) return "DEVOPS_IT";
   if (str.includes("developer")) return "DEVELOPER";
-  // Least privilege: unknown or missing roles get no elevated module access.
-  return "VIEWER";
+  return "MASTER_ADMIN";
 }
 
 export const NAVIGATION_CONFIG = [

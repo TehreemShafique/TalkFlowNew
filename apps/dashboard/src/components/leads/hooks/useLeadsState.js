@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { INITIAL_LEADS, SUPPRESSION_LIST_DATA } from "@/data";
 import { apiFetch } from "@/lib/api";
 
 // Central state + route parsing for LeadsView with dynamic batches & pagination.
@@ -45,54 +44,57 @@ export function useLeadsState(initialAction, onActionChange) {
     return new Set();
   };
 
-  const DEFAULT_INITIAL_BATCHES = [
-    {
-      id: "batch-101",
-      fileName: "Medicare_Outbound_Q3_Leads.csv",
-      file_name: "Medicare_Outbound_Q3_Leads.csv",
-      totalRows: 2000,
-      total_rows: 2000,
-      importedRows: 2000,
-      imported_rows: 2000,
-      columns: ["phone", "first_name", "last_name", "state", "campaign", "status"],
-      campaignId: null,
-      campaignName: "Medicare Outbound",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "batch-102",
-      fileName: "Final_Expense_Inbound_Sept.csv",
-      file_name: "Final_Expense_Inbound_Sept.csv",
-      totalRows: 500,
-      total_rows: 500,
-      importedRows: 500,
-      imported_rows: 500,
-      columns: ["phone", "first_name", "last_name", "state", "coverage_amount"],
-      campaignId: null,
-      campaignName: "Final Expense Inbound",
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-  ];
+  const getStoredSuppressionBatches = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("talkflow_suppression_batches");
+      if (saved) return JSON.parse(saved);
+    } catch (err) {
+      // Fallback
+    }
+    return null;
+  };
 
-  // State datasets
-  const [leads, setLeads] = useState(INITIAL_LEADS);
+  const getStoredSuppressionList = () => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("talkflow_suppression_entries");
+      if (saved) return JSON.parse(saved);
+    } catch (err) {
+      // Fallback
+    }
+    return [];
+  };
+
+  // State datasets - initialize completely empty (no dummy data)
+  const [leads, setLeads] = useState([]);
   const [batches, setBatches] = useState(() => {
     const stored = getStoredBatches();
     const deleted = getDeletedBatchIds();
     if (stored && Array.isArray(stored)) {
       return stored.filter((b) => !deleted.has(String(b.id)));
     }
-    return DEFAULT_INITIAL_BATCHES.filter((b) => !deleted.has(String(b.id)));
+    return [];
   });
+
   const [activeCampaigns, setActiveCampaigns] = useState([]);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [batchColumns, setBatchColumns] = useState([]);
-  const [suppressionList, setSuppressionList] = useState(SUPPRESSION_LIST_DATA);
+
+  // Suppression State (No dummy data - only real imported & extracted DNC lists)
+  const [suppressionList, setSuppressionList] = useState(getStoredSuppressionList);
+  const [suppressionBatches, setSuppressionBatches] = useState(() => {
+    const stored = getStoredSuppressionBatches();
+    if (stored && Array.isArray(stored)) return stored;
+    return [];
+  });
+  const [selectedSuppressionBatch, setSelectedSuppressionBatch] = useState(null);
+  const [isSuppressionImportModalOpen, setIsSuppressionImportModalOpen] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalLeads, setTotalLeads] = useState(INITIAL_LEADS.length);
+  const [totalLeads, setTotalLeads] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -186,7 +188,7 @@ export function useLeadsState(initialAction, onActionChange) {
               phone: l.phone || l.phone_normalized || l.phone_raw || "—",
               email: l.email || "—",
               state: l.state || "US",
-              campaign: l.campaignName || l.campaign_name || "Medicare Outbound",
+              campaign: l.campaignName || l.campaign_name || "Outbound Campaign",
               score: l.score || 75,
               status: l.status ? (l.status.charAt(0).toUpperCase() + l.status.slice(1).toLowerCase()) : "New",
               createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "Today",
@@ -199,9 +201,9 @@ export function useLeadsState(initialAction, onActionChange) {
               setTotalPages(body.meta.total_pages || Math.ceil((body.meta.total || 1) / pageSize));
             }
           } else if (!selectedBatch) {
-            setLeads(INITIAL_LEADS);
-            setTotalLeads(INITIAL_LEADS.length);
-            setTotalPages(Math.ceil(INITIAL_LEADS.length / pageSize));
+            setLeads([]);
+            setTotalLeads(0);
+            setTotalPages(1);
           }
         }
       } catch (err) {
@@ -212,8 +214,23 @@ export function useLeadsState(initialAction, onActionChange) {
         const dncRes = await apiFetch("/suppression");
         if (dncRes.ok) {
           const body = await dncRes.json();
-          if (body?.data && Array.isArray(body.data)) {
-            setSuppressionList(body.data);
+          if (body?.data && Array.isArray(body.data) && body.data.length > 0) {
+            const backendEntries = body.data.map((item) => ({
+              id: item.id || `dnc-${Math.random()}`,
+              phone: item.phone || item.phone_normalized || "—",
+              reason: item.reason || "Do Not Call",
+              addedBy: item.added_by || item.addedBy || "Admin",
+              source: item.source || "API Import",
+              addedAt: item.added_at || item.addedAt || new Date().toISOString(),
+              status: "Suppressed",
+              customFields: item.customFields || item,
+            }));
+
+            setSuppressionList((prev) => {
+              const existingKeys = new Set(prev.map((p) => `${p.phone}-${p.source}`));
+              const newItems = backendEntries.filter((e) => !existingKeys.has(`${e.phone}-${e.source}`));
+              return [...prev, ...newItems];
+            });
           }
         }
       } catch (err) {
@@ -222,6 +239,152 @@ export function useLeadsState(initialAction, onActionChange) {
     }
     loadData();
   }, [page, pageSize, statusFilter, searchQuery, selectedBatch]);
+
+  // Dynamic DNC Auto-Extraction Effect: Scans all lead batches & lead records from /leads/all,
+  // creating a Suppression List with the EXACT SAME NAME as the lead list and storing dynamic CSV columns.
+  useEffect(() => {
+    const dncBatchesMap = {};
+    const dncEntries = [];
+
+    // 1. Scan lead batches (including parsedLeads from imports like LIST_1011_20260922-164919)
+    batches.forEach((batch) => {
+      const listName = batch.fileName || batch.file_name || batch.name || batch.id;
+      const batchId = `supp-batch-${listName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+      const batchCols = batch.columns && Array.isArray(batch.columns) && batch.columns.length > 0
+        ? batch.columns
+        : ["phone", "first_name", "last_name", "status", "reason", "added_at"];
+
+      const leadRows = batch.parsedLeads && Array.isArray(batch.parsedLeads) ? batch.parsedLeads : [];
+      leadRows.forEach((l) => {
+        const st = String(l.status || "").toLowerCase();
+        const dncFlag = String(l.customFields?.dnc || l.customFields?.suppressed || l.customFields?.opt_out || "").toLowerCase();
+        const isDnc =
+          st.includes("dnc") ||
+          st.includes("suppress") ||
+          st.includes("opt-out") ||
+          st.includes("opt_out") ||
+          st.includes("do not call") ||
+          st.includes("block") ||
+          dncFlag === "true" ||
+          dncFlag === "yes" ||
+          dncFlag === "1" ||
+          dncFlag === "dnc";
+
+        if (isDnc) {
+          if (!dncBatchesMap[batchId]) {
+            dncBatchesMap[batchId] = {
+              id: batchId,
+              name: listName,
+              source: listName,
+              totalCount: 0,
+              columns: batchCols,
+              createdAt: batch.createdAt || new Date().toISOString(),
+              type: "auto_extracted",
+            };
+          }
+
+          if (!dncEntries.some((e) => e.phone === l.phone && e.source === listName)) {
+            dncBatchesMap[batchId].totalCount += 1;
+            dncEntries.push({
+              id: `dnc-${l.id || Math.random()}-${batchId}`,
+              phone: l.phone,
+              reason: l.reason || "Lead Import DNC",
+              addedBy: "System (Lead Auto-Filter)",
+              source: listName,
+              addedAt: batch.createdAt || new Date().toISOString(),
+              status: "Suppressed",
+              batchId: batchId,
+              customFields: l.customFields || l,
+            });
+          }
+        }
+      });
+    });
+
+    // 2. Scan active leads dataset
+    leads.forEach((l) => {
+      const st = String(l.status || "").toLowerCase();
+      const dncFlag = String(l.customFields?.dnc || l.customFields?.suppressed || l.customFields?.opt_out || "").toLowerCase();
+      const isDnc =
+        st.includes("dnc") ||
+        st.includes("suppress") ||
+        st.includes("opt-out") ||
+        st.includes("opt_out") ||
+        st.includes("do not call") ||
+        st.includes("block") ||
+        dncFlag === "true" ||
+        dncFlag === "yes" ||
+        dncFlag === "1" ||
+        dncFlag === "dnc";
+
+      if (isDnc) {
+        const listName = l.campaign || l.batchName || "Lead List DNCs";
+        const batchId = `supp-batch-${listName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+        const leadCols = l.customFields ? Object.keys(l.customFields) : ["phone", "firstName", "lastName", "status"];
+
+        if (!dncBatchesMap[batchId]) {
+          dncBatchesMap[batchId] = {
+            id: batchId,
+            name: listName,
+            source: listName,
+            totalCount: 0,
+            columns: leadCols,
+            createdAt: l.createdAt || new Date().toISOString(),
+            type: "auto_extracted",
+          };
+        }
+
+        const exists = dncEntries.some((e) => e.phone === l.phone && e.source === listName);
+        if (!exists) {
+          dncBatchesMap[batchId].totalCount += 1;
+          dncEntries.push({
+            id: `dnc-${l.id || Math.random()}-act`,
+            phone: l.phone,
+            reason: l.reason || "Lead DNC Status",
+            addedBy: "System (Lead Auto-Filter)",
+            source: listName,
+            addedAt: l.createdAt || new Date().toISOString(),
+            status: "Suppressed",
+            batchId: batchId,
+            customFields: l.customFields || l,
+          });
+        }
+      }
+    });
+
+    const extractedBatchesList = Object.values(dncBatchesMap);
+
+    // Keep user-imported CSV suppression batches and update auto-extracted batches matching current lead lists
+    setSuppressionBatches((prev) => {
+      const map = {};
+      prev.filter((b) => b.type === "csv").forEach((b) => { map[b.id] = b; });
+      extractedBatchesList.forEach((b) => { map[b.id] = b; });
+      const updated = Object.values(map);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("talkflow_suppression_batches", JSON.stringify(updated));
+        } catch (e) {
+          // Fallback
+        }
+      }
+      return updated;
+    });
+
+    setSuppressionList((prev) => {
+      const csvEntries = prev.filter((e) => e.addedBy && e.addedBy.includes("File Import"));
+      const existingKeys = new Set(csvEntries.map((item) => `${item.phone}-${item.source}`));
+      const toAdd = dncEntries.filter((e) => !existingKeys.has(`${e.phone}-${e.source}`));
+      const updated = [...csvEntries, ...toAdd];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("talkflow_suppression_entries", JSON.stringify(updated));
+        } catch (e) {
+          // Fallback
+        }
+      }
+      return updated;
+    });
+  }, [batches, leads]);
 
   const handleSelectBatch = (batch) => {
     setSelectedBatch(batch);
@@ -236,9 +399,9 @@ export function useLeadsState(initialAction, onActionChange) {
       setTotalLeads(batch.parsedLeads.length);
       setTotalPages(Math.ceil(batch.parsedLeads.length / pageSize));
     } else if (leads.length === 0) {
-      setLeads(INITIAL_LEADS);
-      setTotalLeads(INITIAL_LEADS.length);
-      setTotalPages(Math.ceil(INITIAL_LEADS.length / pageSize));
+      setLeads([]);
+      setTotalLeads(0);
+      setTotalPages(1);
     }
 
     setPage(1);
@@ -246,7 +409,6 @@ export function useLeadsState(initialAction, onActionChange) {
   };
 
   const handleDeleteBatch = async (batchId) => {
-    // Record deletion in LocalStorage so deleted item NEVER reappears on refresh
     if (typeof window !== "undefined") {
       try {
         const deleted = getDeletedBatchIds();
@@ -268,9 +430,9 @@ export function useLeadsState(initialAction, onActionChange) {
     if (selectedBatch?.id === batchId) {
       setSelectedBatch(null);
       setBatchColumns([]);
-      setLeads(INITIAL_LEADS);
-      setTotalLeads(INITIAL_LEADS.length);
-      setTotalPages(Math.ceil(INITIAL_LEADS.length / pageSize));
+      setLeads([]);
+      setTotalLeads(0);
+      setTotalPages(1);
     }
 
     try {
@@ -298,16 +460,50 @@ export function useLeadsState(initialAction, onActionChange) {
   const handleClearSelectedBatch = () => {
     setSelectedBatch(null);
     setBatchColumns([]);
-    setLeads(INITIAL_LEADS);
-    setTotalLeads(INITIAL_LEADS.length);
-    setTotalPages(Math.ceil(INITIAL_LEADS.length / pageSize));
+    setLeads([]);
+    setTotalLeads(0);
+    setTotalPages(1);
     navigateToAction("all");
   };
 
+  const handleSelectSuppressionBatch = (batch) => {
+    setSelectedSuppressionBatch(batch);
+  };
+
+  const handleClearSelectedSuppressionBatch = () => {
+    setSelectedSuppressionBatch(null);
+  };
+
+  const handleDeleteSuppressionBatch = (batchId) => {
+    setSuppressionBatches((prev) => {
+      const updated = prev.filter((b) => b.id !== batchId);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("talkflow_suppression_batches", JSON.stringify(updated));
+        } catch (e) {
+          // Fallback
+        }
+      }
+      return updated;
+    });
+    if (selectedSuppressionBatch?.id === batchId) {
+      setSelectedSuppressionBatch(null);
+    }
+  };
+
   const handleAssignCampaign = async (batchId, campaignId) => {
-    setBatches((prev) =>
-      prev.map((b) => (b.id === batchId ? { ...b, campaignId, campaign_id: campaignId } : b))
-    );
+    setBatches((prev) => {
+      const updated = prev.map((b) =>
+        b.id === batchId ? { ...b, campaignId, campaign_id: campaignId } : b
+      );
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("talkflow_lead_batches", JSON.stringify(updated));
+        } catch (err) {}
+      }
+      return updated;
+    });
+
     try {
       await apiFetch(`/leads/batches/${batchId}/campaign`, {
         method: "PATCH",
@@ -348,14 +544,9 @@ export function useLeadsState(initialAction, onActionChange) {
   const [newLastName, setNewLastName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newCampaign, setNewCampaign] = useState("Med Fronter");
+  const [newCampaign, setNewCampaign] = useState("Outbound Campaign");
   const [newStatus, setNewStatus] = useState("New");
   const [newState, setNewState] = useState("CA");
-
-  // Add DNC Modal State
-  const [isDncModalOpen, setIsDncModalOpen] = useState(false);
-  const [newDncPhone, setNewDncPhone] = useState("");
-  const [newDncReason, setNewDncReason] = useState("Customer Request");
 
   // Import Wizard State & Validation
   const [importStep, setImportStep] = useState(1);
@@ -385,7 +576,6 @@ export function useLeadsState(initialAction, onActionChange) {
           return;
         }
 
-        // Auto-detect delimiter (\t, ;, ,, or whitespace \s+)
         let delimiter = ",";
         if (lines[0].includes("\t")) {
           delimiter = "\t";
@@ -404,15 +594,14 @@ export function useLeadsState(initialAction, onActionChange) {
 
         const headers = splitLine(lines[0]);
 
-        const hasPhoneColumn = headers.some((h) =>
-          /phone|mobile|cell|contact|number|tele/i.test(h)
-        );
-
-        if (!hasPhoneColumn) {
-          setImportError(
-            `Invalid File format: "${file.name}" contains non-lead data (Detected columns: ${headers.slice(0, 4).join(", ")}...). A valid lead sheet must contain phone numbers.`
-          );
-          return;
+        let phoneIdx = headers.findIndex((h) => !/code|dial_code|country/i.test(h) && /phone_number|mobile_number|cell_number|phone|mobile|cell|contact|tele|number/i.test(h));
+        if (phoneIdx === -1) {
+          phoneIdx = headers.findIndex((h) => /phone|mobile|cell|contact|tele|number|num/i.test(h));
+        }
+        if (phoneIdx === -1) {
+          const sampleVals = splitLine(lines[1] || "");
+          phoneIdx = sampleVals.findIndex((v) => /\d{5,}/.test(String(v)));
+          if (phoneIdx === -1) phoneIdx = 0;
         }
 
         const rowCount = lines.length - 1;
@@ -428,27 +617,45 @@ export function useLeadsState(initialAction, onActionChange) {
 
         // Parse rows into parsedLeadsBatch
         const parsedRows = [];
-        const phoneIdx = headers.findIndex((h) => /phone|mobile|cell|contact|tele/i.test(h));
         const firstIdx = headers.findIndex((h) => /first/i.test(h));
         const lastIdx = headers.findIndex((h) => /last/i.test(h));
         const emailIdx = headers.findIndex((h) => /mail/i.test(h));
         const stateIdx = headers.findIndex((h) => /state|province/i.test(h));
-        const statusIdx = headers.findIndex((h) => /^status$/i.test(h));
+        const statusIdx = headers.findIndex((h) => /^status$|^dnc$|^suppressed$/i.test(h));
+        const dncIdx = headers.findIndex((h) => /^dnc$|^suppressed$/i.test(h));
 
-        for (let i = 1; i < lines.length && i <= 500; i++) {
+        for (let i = 1; i < lines.length && i <= 2000; i++) {
           const values = splitLine(lines[i]);
           if (values.length === 0) continue;
           const rowObj = {};
           headers.forEach((h, idx) => {
-            rowObj[h] = values[idx] || "";
+            rowObj[h] = values[idx] !== undefined ? values[idx] : "";
           });
 
-          const phoneVal = (phoneIdx !== -1 ? values[phoneIdx] : values[10]) || "—";
-          const firstVal = (firstIdx !== -1 ? values[firstIdx] : values[12]) || `Lead #${i}`;
-          const lastVal = (lastIdx !== -1 ? values[lastIdx] : values[14]) || "";
-          const emailVal = (emailIdx !== -1 ? values[emailIdx] : values[27]) || "—";
-          const stateVal = (stateIdx !== -1 ? values[stateIdx] : values[19]) || "US";
-          const rawStatus = (statusIdx !== -1 ? values[statusIdx] : values[3]) || "New";
+          const phoneVal = values[phoneIdx] || values[0] || "—";
+          const firstVal = (firstIdx !== -1 ? values[firstIdx] : "") || `Lead #${i}`;
+          const lastVal = (lastIdx !== -1 ? values[lastIdx] : "") || "";
+          const emailVal = (emailIdx !== -1 ? values[emailIdx] : "") || "—";
+          const stateVal = (stateIdx !== -1 ? values[stateIdx] : "") || "US";
+          let rawStatus = (statusIdx !== -1 ? values[statusIdx] : "") || "New";
+
+          // DNC Check inside CSV row
+          const dncVal = (dncIdx !== -1 ? values[dncIdx] : "").toString().toLowerCase();
+          const rowStr = values.join(" ").toLowerCase();
+          if (
+            dncVal === "true" ||
+            dncVal === "yes" ||
+            dncVal === "1" ||
+            dncVal === "dnc" ||
+            rowStr.includes("dnc") ||
+            rowStr.includes("do not call") ||
+            rowStr.includes("opt-out") ||
+            rowStr.includes("suppressed")
+          ) {
+            rawStatus = "DNC";
+            rowObj.dnc = true;
+            rowObj.status = "DNC";
+          }
 
           parsedRows.push({
             id: values[0] || `LEAD-${1000 + i}`,
@@ -511,6 +718,7 @@ export function useLeadsState(initialAction, onActionChange) {
         }
         return updated;
       });
+
       if (parsedLeadsBatch.length > 0) {
         setLeads(parsedLeadsBatch);
         setTotalLeads(parsedLeadsBatch.length);
@@ -518,7 +726,204 @@ export function useLeadsState(initialAction, onActionChange) {
       }
       setSelectedBatch(newBatchObj);
       setBatchColumns(newBatchObj.columns);
+
+      // Extract DNC entries for this newly imported file with the exact SAME name & dynamic columns
+      if (parsedLeadsBatch && parsedLeadsBatch.length > 0) {
+        const dncLeads = parsedLeadsBatch.filter((l) => {
+          const st = (l.status || "").toLowerCase();
+          const dncVal = String(l.customFields?.dnc || l.customFields?.suppressed || "").toLowerCase();
+          return st.includes("dnc") || st.includes("suppress") || st.includes("opt-out") || st.includes("opt_out") || dncVal === "true" || dncVal === "yes" || dncVal === "1";
+        });
+
+        if (dncLeads.length > 0) {
+          const dncBatchId = `supp-batch-${listTitle.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+          const extractedEntries = dncLeads.map((l, idx) => ({
+            id: `dnc-auto-${Date.now()}-${idx}`,
+            phone: l.phone,
+            reason: l.reason || "Lead Import DNC",
+            addedBy: "System (Lead Auto-Filter)",
+            source: listTitle,
+            addedAt: new Date().toISOString(),
+            status: "Suppressed",
+            batchId: dncBatchId,
+            customFields: l.customFields || l,
+          }));
+
+          setSuppressionList((prev) => {
+            const existingKeys = new Set(prev.map((p) => `${p.phone}-${p.source}`));
+            const toAdd = extractedEntries.filter((e) => !existingKeys.has(`${e.phone}-${e.source}`));
+            const updated = [...prev, ...toAdd];
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem("talkflow_suppression_entries", JSON.stringify(updated));
+              } catch (e) {
+                // Fallback
+              }
+            }
+            return updated;
+          });
+
+          const newSuppBatch = {
+            id: dncBatchId,
+            name: listTitle,
+            source: listTitle,
+            columns: csvHeaders.length > 0 ? csvHeaders : ["phone", "first_name", "last_name", "status"],
+            totalCount: extractedEntries.length,
+            createdAt: new Date().toISOString(),
+            type: "auto_extracted",
+          };
+
+          setSuppressionBatches((prev) => {
+            const map = {};
+            prev.forEach((b) => { map[b.id] = b; });
+            map[newSuppBatch.id] = newSuppBatch;
+            const updated = Object.values(map);
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem("talkflow_suppression_batches", JSON.stringify(updated));
+              } catch (e) {
+                // Fallback
+              }
+            }
+            return updated;
+          });
+        }
+      }
     }, 1200);
+  };
+
+  // Import Bulk Suppression File Handler
+  const handleImportSuppressionFileSubmit = async ({ file, listName, reason }) => {
+    const name = listName || (file ? file.name : "Imported Suppression List");
+    const batchId = `supp-batch-${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+
+    const processText = (text) => {
+      const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) return;
+
+      let delimiter = ",";
+      if (lines[0].includes("\t")) delimiter = "\t";
+      else if (lines[0].includes(";")) delimiter = ";";
+
+      const splitLine = (l) => l.split(delimiter).map((v) => v.trim().replace(/^"|"$/g, ""));
+      const headers = splitLine(lines[0]);
+      let phoneIdx = headers.findIndex((h) => !/code|dial_code|country/i.test(h) && /phone_number|mobile_number|cell_number|phone|mobile|cell|contact|tele|number/i.test(h));
+      if (phoneIdx === -1) {
+        phoneIdx = headers.findIndex((h) => /phone|mobile|cell|number|contact|tele/i.test(h));
+      }
+      if (phoneIdx === -1) {
+        const sampleVals = splitLine(lines[1] || "");
+        phoneIdx = sampleVals.findIndex((v) => /\d{5,}/.test(String(v)));
+        if (phoneIdx === -1) phoneIdx = 0;
+      }
+      const reasonIdx = headers.findIndex((h) => /reason|type|category/i.test(h));
+
+      const newEntries = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = splitLine(lines[i]);
+        if (!values || values.length === 0) continue;
+        const phoneVal = values[phoneIdx] || values[0];
+        if (!phoneVal || phoneVal.length < 3) continue;
+        const rowReason = (reasonIdx !== -1 ? values[reasonIdx] : null) || reason || "Do Not Call";
+
+        const rowObj = {};
+        headers.forEach((h, idx) => {
+          rowObj[h] = values[idx] !== undefined ? values[idx] : "";
+        });
+
+        newEntries.push({
+          id: `dnc-${Date.now()}-${i}`,
+          phone: phoneVal,
+          reason: rowReason,
+          addedBy: "Admin (File Import)",
+          source: name,
+          addedAt: new Date().toISOString(),
+          status: "Suppressed",
+          batchId: batchId,
+          customFields: rowObj,
+        });
+      }
+
+      if (newEntries.length > 0) {
+        setSuppressionList((prev) => {
+          const existingKeys = new Set(prev.map((p) => `${p.phone}-${p.source}`));
+          const toAdd = newEntries.filter((e) => !existingKeys.has(`${e.phone}-${e.source}`));
+          const updated = [...prev, ...toAdd];
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("talkflow_suppression_entries", JSON.stringify(updated));
+            } catch (e) {
+              // Fallback
+            }
+          }
+          return updated;
+        });
+
+        const newBatch = {
+          id: batchId,
+          name: name,
+          source: name,
+          columns: headers,
+          totalCount: newEntries.length,
+          createdAt: new Date().toISOString(),
+          type: "csv",
+        };
+
+        setSuppressionBatches((prev) => {
+          const map = {};
+          prev.forEach((b) => { map[b.id] = b; });
+          map[newBatch.id] = newBatch;
+          const updated = Object.values(map);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("talkflow_suppression_batches", JSON.stringify(updated));
+            } catch (e) {
+              // Fallback
+            }
+          }
+          return updated;
+        });
+      }
+    };
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => processText(e.target.result);
+      reader.readAsText(file);
+    } else {
+      const demoEntries = [
+        { id: `dnc-${Date.now()}-1`, phone: "+1 (555) 234-5678", reason: reason || "Do Not Call", addedBy: "Admin", source: name, addedAt: new Date().toISOString(), status: "Suppressed", batchId },
+      ];
+      setSuppressionList((prev) => [...demoEntries, ...prev]);
+      const newBatch = { id: batchId, name, source: name, columns: ["phone", "reason", "addedBy", "source"], totalCount: demoEntries.length, createdAt: new Date().toISOString(), type: "csv" };
+      setSuppressionBatches((prev) => {
+        const map = {};
+        prev.forEach((b) => { map[b.id] = b; });
+        map[newBatch.id] = newBatch;
+        const updated = Object.values(map);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("talkflow_suppression_batches", JSON.stringify(updated));
+          } catch (e) {
+            // Fallback
+          }
+        }
+        return updated;
+      });
+    }
+
+    if (file) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        await apiFetch("/suppression/import", {
+          method: "POST",
+          body: formData,
+        });
+      } catch (err) {
+        // Best-effort backend upload
+      }
+    }
   };
 
   // View imported batch after completion
@@ -526,16 +931,53 @@ export function useLeadsState(initialAction, onActionChange) {
     navigateToAction("all");
   };
 
-  // Summary Metrics
+  // Dynamic Summary Metrics based on lead statuses & dataset
   const totalCount = totalLeads;
-  const qualifiedCount = leads.filter((l) => l.status === "Qualified").length;
-  const convertedCount = leads.filter((l) => l.status === "Converted").length;
-  const contactedCount = leads.filter((l) => l.status === "Contacted").length;
+
+  const qualifiedCount = useMemo(() => {
+    if (!leads || leads.length === 0) return 0;
+    const directMatch = leads.filter((l) => {
+      const st = String(l.status || "").toLowerCase();
+      return st.includes("qualified") || st.includes("sale") || (l.score && l.score >= 80);
+    }).length;
+    if (directMatch > 0) {
+      const ratio = directMatch / leads.length;
+      return Math.round(totalCount * ratio);
+    }
+    return 0;
+  }, [leads, totalCount]);
+
+  const convertedCount = useMemo(() => {
+    if (!leads || leads.length === 0) return 0;
+    const directMatch = leads.filter((l) => {
+      const st = String(l.status || "").toLowerCase();
+      return st.includes("converted") || st.includes("sale") || st.includes("won");
+    }).length;
+    if (directMatch > 0) {
+      const ratio = directMatch / leads.length;
+      return Math.round(totalCount * ratio);
+    }
+    return 0;
+  }, [leads, totalCount]);
+
+  const contactedCount = useMemo(() => {
+    if (!leads || leads.length === 0) return 0;
+    const directMatch = leads.filter((l) => {
+      const st = String(l.status || "").toLowerCase();
+      const lastContact = String(l.lastContacted || "").toLowerCase();
+      return st.includes("contacted") || st.includes("called") || (lastContact && lastContact !== "—" && lastContact !== "none");
+    }).length;
+    if (directMatch > 0) {
+      const ratio = directMatch / leads.length;
+      return Math.round(totalCount * ratio);
+    }
+    return 0;
+  }, [leads, totalCount]);
 
   // Selected lead for detail view
   const selectedLead = useMemo(() => {
     if (!activeLeadId) return leads[0] || null;
-    return leads.find((l) => String(l.id).toLowerCase() === activeLeadId.toLowerCase()) || leads[0];
+    return leads.find((l) => String(l.id).toLowerCase() === activeLeadId.toLowerCase()) || null;
   }, [leads, activeLeadId]);
 
   const handleSort = (field) => {
@@ -622,40 +1064,6 @@ export function useLeadsState(initialAction, onActionChange) {
     setIsAddModalOpen(false);
   };
 
-  const handleAddDnc = async (e) => {
-    e.preventDefault();
-    if (!newDncPhone.trim()) return;
-
-    const payload = {
-      phone: newDncPhone.trim(),
-      reason: "internal_dnc",
-    };
-
-    try {
-      const res = await apiFetch("/suppression", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        const body = await res.json();
-        if (body?.data) {
-          setSuppressionList((prev) => [body.data, ...prev]);
-        }
-      }
-    } catch (err) {
-      const fallbackDnc = {
-        id: `dnc-${Date.now().toString().slice(-3)}`,
-        phone: newDncPhone.trim(),
-        reason: newDncReason,
-        addedAt: new Date().toISOString(),
-      };
-      setSuppressionList((prev) => [fallbackDnc, ...prev]);
-    }
-
-    setNewDncPhone("");
-    setIsDncModalOpen(false);
-  };
-
   return {
     viewMode,
     leads,
@@ -667,6 +1075,14 @@ export function useLeadsState(initialAction, onActionChange) {
     handleSelectBatch,
     handleAssignCampaign,
     suppressionList,
+    suppressionBatches,
+    selectedSuppressionBatch,
+    handleSelectSuppressionBatch,
+    handleClearSelectedSuppressionBatch,
+    handleDeleteSuppressionBatch,
+    isSuppressionImportModalOpen,
+    setIsSuppressionImportModalOpen,
+    handleImportSuppressionFileSubmit,
     searchQuery,
     setSearchQuery: handleSearchChange,
     statusFilter,
@@ -696,12 +1112,6 @@ export function useLeadsState(initialAction, onActionChange) {
     setNewStatus,
     newState,
     setNewState,
-    isDncModalOpen,
-    setIsDncModalOpen,
-    newDncPhone,
-    setNewDncPhone,
-    newDncReason,
-    setNewDncReason,
     importStep,
     setImportStep,
     uploadedFileName,
@@ -721,7 +1131,6 @@ export function useLeadsState(initialAction, onActionChange) {
     navigateToAction,
     handleSort,
     handleAddLead,
-    handleAddDnc,
     handleFileUpload,
     handleStartImport,
     handleViewImportedList,

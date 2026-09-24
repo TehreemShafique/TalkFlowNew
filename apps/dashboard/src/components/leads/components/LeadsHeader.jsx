@@ -2,29 +2,13 @@
 
 import { UploadCloud, Plus } from "lucide-react";
 
-export default function LeadsHeader({
-  totalCount,
-  qualifiedCount,
-  convertedCount,
-  contactedCount,
-  onImportClick,
-  onAddClick,
-}) {
+export default function LeadsHeader({ onImportClick, onAddClick }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div className="flex flex-col gap-0.5">
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-white tracking-tight">
           Leads Management
         </h1>
-        <div className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-          <span>{totalCount} total leads</span>
-          <span className="mx-1">•</span>
-          <span className="text-emerald-600 dark:text-emerald-400">{qualifiedCount} qualified</span>
-          <span className="mx-1">•</span>
-          <span className="text-blue-600 dark:text-blue-400">{convertedCount} converted</span>
-          <span className="mx-1">•</span>
-          <span className="text-amber-600 dark:text-amber-400">{contactedCount} contacted</span>
-        </div>
       </div>
 
       <div className="flex items-center gap-2">

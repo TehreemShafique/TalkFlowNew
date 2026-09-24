@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X, ArrowUpDown } from "lucide-react";
+import { Search, X, ArrowUpDown, Edit3, Trash2 } from "lucide-react";
 
 export default function CampaignListTable({
   searchQuery,
@@ -11,6 +11,7 @@ export default function CampaignListTable({
   totalCampaigns,
   onSort,
   onOpenCampaign,
+  onDeleteCampaign,
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -114,7 +115,6 @@ export default function CampaignListTable({
                     <ArrowUpDown className="h-3 w-3 opacity-60" />
                   </div>
                 </th>
-                <th className="px-4 py-3">AMD</th>
                 <th className="px-4 py-3">Trunks</th>
                 <th className="px-4 py-3">Recording</th>
                 <th className="px-4 py-3">User Groups</th>
@@ -158,15 +158,6 @@ export default function CampaignListTable({
                   <td className="px-4 py-4 font-semibold text-neutral-900 dark:text-white">
                     {camp.dialLevel}
                   </td>
-                  <td className="px-4 py-4">
-                    {camp.amd === "Enabled" ? (
-                      <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/80 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
-                        Enabled
-                      </span>
-                    ) : (
-                      <span className="text-neutral-500 dark:text-neutral-400">Disabled</span>
-                    )}
-                  </td>
                   <td className="px-4 py-4 font-mono text-[11px] text-neutral-700 dark:text-neutral-300">
                     {camp.trunks.manual}
                   </td>
@@ -179,16 +170,35 @@ export default function CampaignListTable({
                     {camp.userGroups}
                   </td>
                   <td className="px-4 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenCampaign(camp.id);
-                      }}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                    >
-                      <span>View Overview</span>
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenCampaign(camp.id);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                        title="Edit & View Campaign"
+                      >
+                        <Edit3 className="h-3 w-3 text-blue-500" />
+                        <span>Edit / View</span>
+                      </button>
+
+                      {onDeleteCampaign && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteCampaign(camp.id);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/50 px-2 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/80 transition-colors"
+                          title="Delete Campaign"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Delete</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

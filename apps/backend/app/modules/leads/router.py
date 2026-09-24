@@ -61,7 +61,7 @@ async def update_batch_campaign(
 
 @router.delete("/batches/{batch_id}", response_model=DataResponse[dict[str, Any]])
 async def delete_lead_batch(
-    batch_id: uuid.UUID,
+    batch_id: str,
     actor: EditGate,
     db: DbSession,
 ):

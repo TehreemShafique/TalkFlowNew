@@ -2,8 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import logoDark from "../../../public/logo-dark.png";
+import { Logo } from "@/components/layout/Logo";
 import { useAuth } from "@/context";
 import { Button, Input, LoadingSpinner } from "@/components/ui";
 import {
@@ -100,12 +99,7 @@ export default function SignupPage() {
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-neutral-800 bg-[#0d0d0f]/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-all my-auto">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-2">
-          <Image
-            src={logoDark}
-            alt="SmartBrains BPO Logo"
-            className="h-14 w-auto object-contain mb-3"
-            priority
-          />
+          <Logo theme="dark" className="mb-3" />
           <h1 className="text-xl font-bold tracking-tight text-white">
             TalkFlow Analytics
           </h1>

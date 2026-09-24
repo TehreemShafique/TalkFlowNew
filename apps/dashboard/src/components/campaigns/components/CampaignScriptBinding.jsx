@@ -4,20 +4,27 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { INITIAL_SCRIPTS } from "@/data";
 
-export default function CampaignScriptBinding({ campaign, onRefresh }) {
+export default function CampaignScriptBinding({ campaign, onRefresh, onBindScript }) {
   const [availableScripts, setAvailableScripts] = useState(INITIAL_SCRIPTS);
   const [selectedScriptId, setSelectedScriptId] = useState(INITIAL_SCRIPTS[0]?.id || "");
   const [binding, setBinding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
   const fetchScripts = async () => {
+    let localScripts = [];
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("talkflow_call_scripts");
+        if (saved) localScripts = JSON.parse(saved);
+      } catch (err) {}
+    }
+
     try {
       const res = await apiFetch("/scripts");
       if (res.ok) {
         const json = await res.json();
         const apiItems = json.items || json.data || [];
-        // Merge API items with INITIAL_SCRIPTS (deduplicating by id)
-        const combined = [...apiItems];
+        const combined = [...apiItems, ...localScripts];
         for (const initScript of INITIAL_SCRIPTS) {
           if (!combined.some((s) => s.id === initScript.id || s.name === initScript.name)) {
             combined.push(initScript);
@@ -32,9 +39,16 @@ export default function CampaignScriptBinding({ campaign, onRefresh }) {
     } catch (err) {
       console.warn("Using default scripts list:", err);
     }
-    setAvailableScripts(INITIAL_SCRIPTS);
-    if (!selectedScriptId && INITIAL_SCRIPTS.length > 0) {
-      setSelectedScriptId(INITIAL_SCRIPTS[0].id);
+
+    const fallbackCombined = [...localScripts];
+    for (const initScript of INITIAL_SCRIPTS) {
+      if (!fallbackCombined.some((s) => s.id === initScript.id || s.name === initScript.name)) {
+        fallbackCombined.push(initScript);
+      }
+    }
+    setAvailableScripts(fallbackCombined);
+    if (!selectedScriptId && fallbackCombined.length > 0) {
+      setSelectedScriptId(fallbackCombined[0].id);
     }
   };
 
@@ -42,14 +56,18 @@ export default function CampaignScriptBinding({ campaign, onRefresh }) {
     fetchScripts();
   }, []);
 
+  const activeScriptsOnly = availableScripts.filter(
+    (s) => s.status === "active" || s.status === "approved"
+  );
+
   const boundScript = availableScripts.find(
     (s) => s.id === campaign.scriptId || s.active_version_id === campaign.activeScriptVersionId || s.name === campaign.script?.activeScript
   );
 
   const handleBindScript = async (e) => {
     e.preventDefault();
-    if (!selectedScriptId) return;
-    const targetScript = availableScripts.find((s) => s.id === selectedScriptId);
+    const effectiveList = activeScriptsOnly.length > 0 ? activeScriptsOnly : availableScripts;
+    const targetScript = effectiveList.find((s) => s.id === selectedScriptId) || effectiveList[0];
     if (!targetScript) return;
 
     const versionId =
@@ -77,6 +95,35 @@ export default function CampaignScriptBinding({ campaign, onRefresh }) {
         activeScript: targetScript.name,
         version: targetScript.version || "Active",
       };
+
+      if (typeof window !== "undefined") {
+        try {
+          const savedCamps = localStorage.getItem("talkflow_campaigns");
+          if (savedCamps) {
+            const parsed = JSON.parse(savedCamps);
+            const updatedCamps = parsed.map((c) => {
+              if (c.id === campaign.id || c.name === campaign.name) {
+                return {
+                  ...c,
+                  scriptId: targetScript.id,
+                  activeScriptVersionId: versionId,
+                  script: {
+                    activeScript: targetScript.name,
+                    version: targetScript.version || "Active",
+                  },
+                };
+              }
+              return c;
+            });
+            localStorage.setItem("talkflow_campaigns", JSON.stringify(updatedCamps));
+          }
+        } catch (e) {}
+      }
+
+      if (onBindScript) {
+        onBindScript(campaign.id, targetScript);
+      }
+
       setBinding(false);
       setIsEditing(false);
       if (onRefresh) await onRefresh();
@@ -84,6 +131,7 @@ export default function CampaignScriptBinding({ campaign, onRefresh }) {
   };
 
   const isBound = Boolean((campaign.activeScriptVersionId || boundScript || (campaign.script?.activeScript && campaign.script.activeScript !== "No Script Bound")) && !isEditing);
+  const displayList = activeScriptsOnly.length > 0 ? activeScriptsOnly : availableScripts;
 
   return (
     <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-6 shadow-xs flex flex-col gap-6">
@@ -109,7 +157,7 @@ export default function CampaignScriptBinding({ campaign, onRefresh }) {
               {boundScript?.name || campaign.script?.activeScript || "Medicare Part C/D First-Level Qualification"}
             </span>
             <span className="text-neutral-500">
-              Bound Version: {boundScript?.version || boundScript?.active_version || campaign.script?.version || "v1.1"}
+              Bound Version: {boundScript?.version || boundScript?.active_version || campaign.script?.version || "v1.0"}
             </span>
           </div>
           <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold border border-emerald-300">
@@ -120,29 +168,29 @@ export default function CampaignScriptBinding({ campaign, onRefresh }) {
         <div className="bg-neutral-50 dark:bg-[#151518] p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col gap-3 text-xs">
           <div className="flex flex-col gap-1">
             <span className="font-bold text-neutral-800 dark:text-neutral-200">
-              Select Script to Bind
+              Select Active Script to Bind
             </span>
             <p className="text-neutral-500">
-              Choose an active qualification script from your library to bind to this campaign.
+              Only approved and active qualification scripts are listed below for live campaign binding.
             </p>
           </div>
 
           <form onSubmit={handleBindScript} className="flex flex-col sm:flex-row items-center gap-2 mt-2">
             <select
-              value={selectedScriptId}
+              value={selectedScriptId || (displayList[0]?.id || "")}
               onChange={(e) => setSelectedScriptId(e.target.value)}
               className="w-full sm:flex-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-xs outline-none"
             >
-              {availableScripts.map((s) => (
+              {displayList.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.status || "active"})
+                  {s.name} ({s.version || "v1.0"} • ACTIVE)
                 </option>
               ))}
             </select>
             <div className="flex gap-2 w-full sm:w-auto">
               <button
                 type="submit"
-                disabled={binding || availableScripts.length === 0}
+                disabled={binding || displayList.length === 0}
                 className="flex-1 sm:flex-initial px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md disabled:opacity-50"
               >
                 {binding ? "Binding..." : "Bind Script"}

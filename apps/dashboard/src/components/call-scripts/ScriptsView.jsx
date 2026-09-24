@@ -30,55 +30,124 @@ import {
   RotateCcw,
   MessageSquare,
   Sparkle,
+  Trash2,
 } from "lucide-react";
 import { INITIAL_SCRIPTS, APPROVAL_QUEUE_SCRIPTS } from "@/data";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getStoredUser } from "@/lib/api";
 
 export default function ScriptsView({ initialAction, onActionChange }) {
-  const [scripts, setScripts] = useState(INITIAL_SCRIPTS);
+  // Dynamic logged-in user profile
+  const activeUser = useMemo(() => getStoredUser(), []);
+  const activeUserName = useMemo(() => {
+    if (!activeUser) return "Admin User";
+    if (activeUser.name) return activeUser.name;
+    if (activeUser.first_name) {
+      return `${activeUser.first_name} ${activeUser.last_name || ""}`.trim();
+    }
+    if (activeUser.email) return activeUser.email.split("@")[0];
+    return "Admin User";
+  }, [activeUser]);
+
+  // Local persistence helpers
+  const getStoredScripts = () => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("talkflow_call_scripts");
+      if (saved) return JSON.parse(saved);
+    } catch (err) {}
+    return [];
+  };
+
+  const getDeletedScriptIds = () => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = localStorage.getItem("talkflow_deleted_scripts");
+      if (saved) return new Set(JSON.parse(saved));
+    } catch (err) {}
+    return new Set();
+  };
+
+  const saveStoredScripts = (scriptList) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("talkflow_call_scripts", JSON.stringify(scriptList));
+    } catch (err) {}
+  };
+
+  const [scripts, setScripts] = useState(() => {
+    const stored = getStoredScripts();
+    const deleted = getDeletedScriptIds();
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+      return stored.filter((s) => !deleted.has(String(s.id)));
+    }
+    return INITIAL_SCRIPTS;
+  });
+
   const [approvalQueue, setApprovalQueue] = useState(APPROVAL_QUEUE_SCRIPTS);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchScripts = async () => {
+    const deletedIds = getDeletedScriptIds();
+    const localScripts = getStoredScripts().filter((s) => !deletedIds.has(String(s.id)));
+
     try {
       const res = await apiFetch("/scripts");
       if (res.ok) {
         const json = await res.json();
         const items = json.items || json.data || [];
-        const mapped = items.map((s) => ({
-          id: s.id,
-          name: s.name,
-          version: s.active_version ? `v${s.active_version}.0` : `v${s.current_version || 1}.0`,
-          campaignId: "c-custom",
-          campaignName: s.name.includes("Med") ? "Med Fronter" : "Standard Campaign",
-          status: s.status || "draft",
-          approvedBy: s.status === "approved" || s.status === "active" ? "QA Director" : "Pending Approval",
-          author: "Bilal Satti",
-          updatedAt: "Recent",
-          qualificationRate: "72.4%",
-          transferRate: "68.1%",
-          dropOffRate: "12.0%",
-          fallbackCount: 0,
-          greeting: s.greeting || "Hello, thank you for taking our call.",
-          consent: s.consent || "Calls are recorded for quality assurance.",
-          qualificationQuestions: s.qualification_questions || [],
-          transferMessage: s.transfer_message || "Connecting you to an agent...",
-          disqualificationMessage: s.disqualification_message || "Thank you, goodbye.",
-          versionHistory: (s.versions || []).map((v) => ({
-            version: `v${v.version}.0`,
-            status: v.status,
-            releaseDate: v.created_at ? String(v.created_at).slice(0, 10) : "Today",
-            author: v.created_by || "Bilal Satti",
-            approvedBy: v.approved_at ? "QA Director" : "Pending Approval",
-            changes: v.change_note || "Version update",
-          })),
-          active_version_id: s.active_version_id,
-        }));
-        setScripts(mapped);
+        const mapped = items
+          .filter((s) => !deletedIds.has(String(s.id)))
+          .map((s) => ({
+            id: String(s.id),
+            name: s.name,
+            version: s.active_version ? `v${s.active_version}.0` : `v${s.current_version || 1}.0`,
+            campaignId: s.campaign_id || "c-custom",
+            campaignName: s.campaign_name || (s.name.includes("Med") ? "Med Fronter" : "Standard Campaign"),
+            status: s.status || "active",
+            approvedBy: s.status === "approved" || s.status === "active" ? "QA Director" : "Pending Approval",
+            author: s.created_by || activeUserName,
+            updatedAt: s.updated_at ? new Date(s.updated_at).toLocaleDateString() : "Recent",
+            qualificationRate: "0.0%",
+            transferRate: "0.0%",
+            dropOffRate: "0.0%",
+            fallbackCount: 0,
+            greeting: s.greeting || "Hello, thank you for taking our call.",
+            consent: s.consent || "Calls are recorded for quality assurance.",
+            qualificationQuestions: s.qualification_questions || [],
+            transferMessage: s.transfer_message || "Connecting you to an agent...",
+            disqualificationMessage: s.disqualification_message || "Thank you, goodbye.",
+            versionHistory: (s.versions || []).map((v) => ({
+              version: `v${v.version}.0`,
+              status: v.status,
+              releaseDate: v.created_at ? String(v.created_at).slice(0, 10) : "Today",
+              author: v.created_by || activeUserName,
+              approvedBy: v.approved_at ? "QA Director" : "Pending Approval",
+              changes: v.change_note || "Version update",
+            })),
+            active_version_id: s.active_version_id,
+          }));
+
+        const map = {};
+        mapped.forEach((b) => { map[b.id] = b; });
+        localScripts.forEach((l) => {
+          if (!map[l.id]) {
+            map[l.id] = l;
+          }
+        });
+
+        const merged = Object.values(map);
+        setScripts(merged);
+        saveStoredScripts(merged);
+        return;
       }
     } catch (err) {
-      console.error("Failed to fetch scripts from API:", err);
+      console.warn("Backend API unavailable for scripts, using local cache:", err);
+    }
+
+    if (localScripts.length > 0) {
+      setScripts(localScripts);
     }
   };
 
@@ -149,6 +218,8 @@ export default function ScriptsView({ initialAction, onActionChange }) {
   const [newDisqualifyMsg, setNewDisqualifyMsg] = useState("");
 
   // Form state for /scripts/[scriptId]/edit (Draft Editor)
+  const [editName, setEditName] = useState(activeScript?.name || "");
+  const [editCampaignName, setEditCampaignName] = useState(activeScript?.campaignName || "Med Fronter");
   const [editGreeting, setEditGreeting] = useState(activeScript?.greeting || "");
   const [editConsent, setEditConsent] = useState(activeScript?.consent || "");
   const [editQuestions, setEditQuestions] = useState(
@@ -162,6 +233,8 @@ export default function ScriptsView({ initialAction, onActionChange }) {
   // Sync edit form when activeScript changes
   React.useEffect(() => {
     if (activeScript) {
+      setEditName(activeScript.name || "");
+      setEditCampaignName(activeScript.campaignName || "Med Fronter");
       setEditGreeting(activeScript.greeting || "");
       setEditConsent(activeScript.consent || "");
       setEditQuestions(activeScript.qualificationQuestions || []);
@@ -193,48 +266,164 @@ export default function ScriptsView({ initialAction, onActionChange }) {
     });
   }, [scripts, searchQuery, statusFilter]);
 
-  // Submit Handler for New Script (/scripts/new)
+  // Delete Handler
+  // Activate script in dialer handler
+  const handleActivateScript = async (scriptId) => {
+    setScripts((prev) => {
+      const updated = prev.map((s) => {
+        if (String(s.id) === String(scriptId)) {
+          return {
+            ...s,
+            status: "active",
+            approvedBy: "QA Director",
+            updatedAt: "Just now",
+          };
+        }
+        return s;
+      });
+      saveStoredScripts(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/scripts/${scriptId}/versions/1/submit`, { method: "POST" });
+      await apiFetch(`/scripts/${scriptId}/versions/1/approve`, { method: "POST" });
+      await apiFetch(`/scripts/${scriptId}/versions/1/activate`, { method: "POST" });
+    } catch (err) {
+      console.warn("Backend script activation skipped:", err);
+    }
+  };
+
+  const handleDeactivateScript = async (scriptId) => {
+    setScripts((prev) => {
+      const updated = prev.map((s) => {
+        if (String(s.id) === String(scriptId)) {
+          return {
+            ...s,
+            status: "draft",
+            approvedBy: "Pending Approval",
+            updatedAt: "Just now",
+          };
+        }
+        return s;
+      });
+      saveStoredScripts(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/scripts/${scriptId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "draft" }),
+      });
+    } catch (err) {
+      // Best effort
+    }
+  };
+
+  // Delete Handler
+  const handleDeleteScript = async (scriptId) => {
+    if (typeof window !== "undefined") {
+      try {
+        const deleted = getDeletedScriptIds();
+        deleted.add(String(scriptId));
+        localStorage.setItem("talkflow_deleted_scripts", JSON.stringify(Array.from(deleted)));
+      } catch (err) {}
+    }
+
+    setScripts((prev) => {
+      const updated = prev.filter((s) => String(s.id) !== String(scriptId));
+      saveStoredScripts(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/scripts/${scriptId}`, { method: "DELETE" });
+    } catch (err) {
+      // Best effort
+    }
+
+    navigateToAction(null);
+  };
+
+  // Submit Handler for New Script (/scripts/new) - saves initially as DRAFT v1.0
   const handleCreateScript = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!newScriptName.trim()) return;
 
+    setIsSubmitting(true);
+
     const localId = `script-${Date.now().toString().slice(-4)}`;
+    const questions = newQuestionsList.length > 0 ? newQuestionsList : [
+      "Are you currently 65 years of age or older, or qualified due to disability?",
+      "Do you currently have Medicare Part A and Part B active?"
+    ];
+    const greetingText = newGreeting || "Hello, this is Alex from TalkFlow BPO regarding your Medicare options.";
+    const consentText = newConsent || "This call is recorded for quality and compliance under TCPA guidelines.";
+    const transferText = newTransferMsg || "Thank you! Connecting you to a licensed Medicare verifier...";
+    const disqualifyText = newDisqualifyMsg || "Thank you for your time today. Goodbye.";
+
+    const initVerObj = {
+      version: "v1.0",
+      status: "draft",
+      releaseDate: new Date().toLocaleDateString(),
+      author: activeUserName,
+      approvedBy: "Pending Approval",
+      changes: "Initial Script Creation (Draft v1.0)",
+      greeting: greetingText,
+      consent: consentText,
+      qualificationQuestions: questions,
+      transferMessage: transferText,
+      disqualificationMessage: disqualifyText,
+    };
+
     const createdLocal = {
       id: localId,
       name: newScriptName.trim(),
-      version: "v1.0-draft",
+      version: "v1.0",
       campaignId: "c-custom",
       campaignName: newCampaignName,
-      status: "approved",
-      approvedBy: "QA Director",
-      author: "Bilal Satti",
+      status: "draft",
+      approvedBy: "Pending Approval",
+      author: activeUserName,
       updatedAt: "Just now",
-      qualificationRate: "70.0%",
-      transferRate: "65.0%",
-      dropOffRate: "10.0%",
+      qualificationRate: "0.0%",
+      transferRate: "0.0%",
+      dropOffRate: "0.0%",
       fallbackCount: 0,
-      greeting:
-        newGreeting ||
-        "Hello, this is Alex from SmartBrains BPO regarding your Medicare options.",
-      consent:
-        newConsent ||
-        "This call is recorded for quality and compliance under TCPA guidelines.",
-      qualificationQuestions: newQuestionsList,
-      transferMessage:
-        newTransferMsg || "Thank you! Connecting you to a licensed Medicare verifier...",
-      disqualificationMessage:
-        newDisqualifyMsg || "Thank you for your time today. Goodbye.",
+      greeting: greetingText,
+      consent: consentText,
+      qualificationQuestions: questions,
+      transferMessage: transferText,
+      disqualificationMessage: disqualifyText,
+      versionHistory: [initVerObj],
+      snapshots: {
+        "v1.0": initVerObj,
+      },
     };
+
+    setScripts((prev) => {
+      const updated = [createdLocal, ...prev];
+      saveStoredScripts(updated);
+      return updated;
+    });
+
+    setNewScriptName("");
+    setNewGreeting("");
+    setNewConsent("");
+    setNewTransferMsg("");
+    setNewDisqualifyMsg("");
 
     try {
       const payload = {
-        name: newScriptName.trim(),
+        name: createdLocal.name,
         description: `Created for ${newCampaignName}`,
-        greeting: newGreeting || "Hello, thank you for taking our call.",
-        consent: newConsent || "This call is recorded for quality and compliance purposes.",
-        qualification_questions: newQuestionsList,
-        transfer_message: newTransferMsg || "Thank you! Connecting you to a licensed verifier...",
-        disqualification_message: newDisqualifyMsg || "Thank you for your time today. Goodbye.",
+        greeting: createdLocal.greeting,
+        consent: createdLocal.consent,
+        qualification_questions: createdLocal.qualificationQuestions,
+        transfer_message: createdLocal.transferMessage,
+        disqualification_message: createdLocal.disqualificationMessage,
       };
 
       const res = await apiFetch("/scripts", {
@@ -245,62 +434,144 @@ export default function ScriptsView({ initialAction, onActionChange }) {
       if (res && res.ok) {
         const json = await res.json();
         const createdScript = json.data || json;
-        const scriptId = createdScript.id;
-
-        try {
-          await apiFetch(`/scripts/${scriptId}/versions/1/submit`, { method: "POST" });
-          await apiFetch(`/scripts/${scriptId}/versions/1/approve`, { method: "POST" });
-        } catch (verErr) {
-          console.warn("Version auto-approve skipped:", verErr);
+        if (createdScript?.id) {
+          const backendId = String(createdScript.id);
+          await fetchScripts();
+          setIsSubmitting(false);
+          navigateToAction(backendId);
+          return;
         }
-
-        await fetchScripts();
-        navigateToAction(scriptId);
-        return;
       }
     } catch (err) {
-      console.warn("Backend API unavailable, saving script to local state:", err);
+      console.warn("Backend API unavailable, saving script locally:", err);
     }
 
-    // Fallback: save to local state if backend call fails or server is offline
-    setScripts((prev) => [createdLocal, ...prev]);
+    setIsSubmitting(false);
     navigateToAction(localId);
   };
 
   // Save Draft Edits (/scripts/[scriptId]/edit)
-  const handleSaveDraftEdits = (e, submitForApproval = false) => {
+  const handleSaveDraftEdits = async (e, submitForApproval = false) => {
     e.preventDefault();
     if (!activeScript) return;
 
-    const updatedStatus = submitForApproval ? "pending_review" : "draft";
+    const updatedStatus = submitForApproval ? "pending_review" : (activeScript.status || "draft");
+    const updatedName = editName.trim() || activeScript.name;
 
-    setScripts((prev) =>
-      prev.map((s) => {
-        if (s.id === activeScript.id) {
+    setScripts((prev) => {
+      const updated = prev.map((s) => {
+        if (String(s.id) === String(activeScript.id)) {
+          const wasActive = s.status === "active" || s.status === "approved";
+          let currentVerStr = s.version || "v1.0";
+          let history = Array.isArray(s.versionHistory) && s.versionHistory.length > 0 ? [...s.versionHistory] : [];
+          let snapshotMap = { ...(s.snapshots || {}) };
+
+          if (wasActive) {
+            // Edit on active script spawns next major version (e.g. v1.0 -> v2.0)
+            const currentNum = parseInt((currentVerStr.match(/\d+/) || [1])[0], 10);
+            currentVerStr = `v${currentNum + 1}.0`;
+
+            const newVerObj = {
+              version: currentVerStr,
+              status: updatedStatus,
+              releaseDate: new Date().toLocaleDateString(),
+              author: activeUserName,
+              approvedBy: "Pending Approval",
+              changes: `Version ${currentVerStr} updates`,
+              greeting: editGreeting,
+              consent: editConsent,
+              qualificationQuestions: editQuestions,
+              transferMessage: editTransferMsg,
+              disqualificationMessage: editDisqualifyMsg,
+            };
+
+            history = [newVerObj, ...history];
+            snapshotMap[currentVerStr] = newVerObj;
+          } else {
+            // Update current draft version in place
+            if (history.length === 0) {
+              const baseObj = {
+                version: currentVerStr,
+                status: updatedStatus,
+                releaseDate: new Date().toLocaleDateString(),
+                author: activeUserName,
+                approvedBy: "Pending Approval",
+                changes: `Draft updates (${currentVerStr})`,
+                greeting: editGreeting,
+                consent: editConsent,
+                qualificationQuestions: editQuestions,
+                transferMessage: editTransferMsg,
+                disqualificationMessage: editDisqualifyMsg,
+              };
+              history = [baseObj];
+              snapshotMap[currentVerStr] = baseObj;
+            } else {
+              history = history.map((vh, idx) => {
+                if (idx === 0 || vh.version === currentVerStr) {
+                  const updatedVer = {
+                    ...vh,
+                    status: updatedStatus,
+                    greeting: editGreeting,
+                    consent: editConsent,
+                    qualificationQuestions: editQuestions,
+                    transferMessage: editTransferMsg,
+                    disqualificationMessage: editDisqualifyMsg,
+                    changes: `Draft updates (${currentVerStr})`,
+                  };
+                  snapshotMap[vh.version] = updatedVer;
+                  return updatedVer;
+                }
+                return vh;
+              });
+            }
+          }
+
           return {
             ...s,
+            name: updatedName,
+            campaignName: editCampaignName,
+            version: currentVerStr,
             status: updatedStatus,
             greeting: editGreeting,
             consent: editConsent,
             qualificationQuestions: editQuestions,
             transferMessage: editTransferMsg,
             disqualificationMessage: editDisqualifyMsg,
+            versionHistory: history,
+            snapshots: snapshotMap,
             updatedAt: "Just now",
           };
         }
         return s;
-      })
-    );
+      });
+      saveStoredScripts(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/scripts/${activeScript.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: updatedName,
+          greeting: editGreeting,
+          consent: editConsent,
+          qualification_questions: editQuestions,
+          transfer_message: editTransferMsg,
+          disqualification_message: editDisqualifyMsg,
+        }),
+      });
+    } catch (err) {
+      // Best effort PATCH
+    }
 
     if (submitForApproval) {
-      // Add item to approval queue
       const apprItem = {
         id: `appr-${Date.now()}`,
         scriptId: activeScript.id,
-        scriptName: activeScript.name,
+        scriptName: updatedName,
         version: `${activeScript.version}-rc`,
-        campaignName: activeScript.campaignName,
-        author: "Bilal Satti",
+        campaignName: editCampaignName,
+        author: activeUserName,
         submittedAt: "Just now",
         complianceScore: "98%",
         diffSummary: "Updated greeting and qualification wording",
@@ -546,27 +817,60 @@ export default function ScriptsView({ initialAction, onActionChange }) {
                         {scr.transferRate}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {scr.status === "active" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeactivateScript(scr.id)}
+                              className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors"
+                              title="Set to Draft"
+                            >
+                              <span>Set to Draft</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleActivateScript(scr.id)}
+                              className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                              title="Activate Script in Dialer"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Activate</span>
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigateToAction(`${scr.id}/preview`);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 hover:bg-purple-100"
+                            onClick={() => navigateToAction(`${scr.id}/preview`)}
+                            className="inline-flex items-center gap-1 rounded-md border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 text-xs font-bold text-purple-700 dark:text-purple-400 hover:bg-purple-100"
+                            title="Simulate Flow"
                           >
                             <Play className="h-3 w-3" />
                             <span>Simulate</span>
                           </button>
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigateToAction(scr.id);
-                            }}
+                            onClick={() => navigateToAction(`${scr.id}/edit`)}
+                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 text-xs font-bold text-blue-700 dark:text-blue-400 hover:bg-blue-100"
+                            title="Edit Script"
+                          >
+                            <Edit3 className="h-3 w-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigateToAction(scr.id)}
                             className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1 text-xs font-semibold hover:bg-neutral-100"
+                            title="Overview"
                           >
                             <span>Overview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteScript(scr.id)}
+                            className="p-1 rounded-md text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                            title="Delete Script"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -711,6 +1015,32 @@ export default function ScriptsView({ initialAction, onActionChange }) {
               </div>
             </div>
 
+            <div className="flex flex-col gap-1.5 border-t border-neutral-200 dark:border-neutral-800 pt-4">
+              <label className="font-bold text-neutral-800 dark:text-neutral-200">
+                Transfer Spoken Message (When Qualified)
+              </label>
+              <textarea
+                rows={2}
+                value={newTransferMsg}
+                onChange={(e) => setNewTransferMsg(e.target.value)}
+                placeholder="Thank you! You qualify for an upgrade. Please hold while I connect you to a licensed Medicare verifier..."
+                className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] p-3 text-xs outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold text-neutral-800 dark:text-neutral-200">
+                Disqualification Spoken Message (When Ineligible)
+              </label>
+              <textarea
+                rows={2}
+                value={newDisqualifyMsg}
+                onChange={(e) => setNewDisqualifyMsg(e.target.value)}
+                placeholder="Thank you for your time today. Have a wonderful day, goodbye."
+                className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] p-3 text-xs outline-none focus:border-blue-500"
+              />
+            </div>
+
             <div className="flex justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-800">
               <button
                 type="button"
@@ -721,9 +1051,17 @@ export default function ScriptsView({ initialAction, onActionChange }) {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow-xs"
+                disabled={isSubmitting}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-md shadow-xs flex items-center gap-2"
               >
-                Save Script Draft
+                {isSubmitting ? (
+                  <>
+                    <span className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Saving Script...</span>
+                  </>
+                ) : (
+                  <span>Save Script</span>
+                )}
               </button>
             </div>
           </form>
@@ -749,17 +1087,42 @@ export default function ScriptsView({ initialAction, onActionChange }) {
                   <h1 className="text-2xl font-bold text-neutral-900 dark:text-white tracking-tight">
                     {activeScript.name}
                   </h1>
-                  <span className="rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-bold">
-                    {activeScript.status}
-                  </span>
+                  {activeScript.status === "active" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/70 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      ACTIVE IN DIALER
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">
+                      DRAFT
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Domain: {activeScript.domain} | Active Version: {activeScript.version}
+                  Bound Campaign: {activeScript.campaignName} | Version: {activeScript.version}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
+              {activeScript.status !== "active" ? (
+                <button
+                  type="button"
+                  onClick={() => handleActivateScript(activeScript.id)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs transition-colors"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Activate Script</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleDeactivateScript(activeScript.id)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors"
+                >
+                  <span>Set to Draft</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => navigateToAction(`${activeScript.id}/preview`)}
@@ -775,6 +1138,15 @@ export default function ScriptsView({ initialAction, onActionChange }) {
               >
                 <Edit3 className="h-3.5 w-3.5" />
                 <span>Edit Script</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteScript(activeScript.id)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/60 px-3 py-1.5 text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-100 transition-colors"
+                title="Delete Script"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete</span>
               </button>
             </div>
           </div>
@@ -906,6 +1278,35 @@ export default function ScriptsView({ initialAction, onActionChange }) {
           <form className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-6 shadow-xs flex flex-col gap-5 text-xs">
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-neutral-800 dark:text-neutral-200">
+                Script Name / Title
+              </label>
+              <input
+                type="text"
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Script Title"
+                className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] px-3 py-2 text-xs outline-none focus:border-blue-500 font-bold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold text-neutral-800 dark:text-neutral-200">
+                Target Campaign Binding
+              </label>
+              <select
+                value={editCampaignName}
+                onChange={(e) => setEditCampaignName(e.target.value)}
+                className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] px-3 py-2 text-xs outline-none font-medium"
+              >
+                <option value="Med Fronter">Med Fronter</option>
+                <option value="Data Campaign">Data Campaign</option>
+                <option value="Insurance Renewals">Insurance Renewals</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5 border-t border-neutral-200 dark:border-neutral-800 pt-4">
+              <label className="font-bold text-neutral-800 dark:text-neutral-200">
                 Opening Greeting Prompt
               </label>
               <textarea
@@ -930,7 +1331,7 @@ export default function ScriptsView({ initialAction, onActionChange }) {
 
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-neutral-800 dark:text-neutral-200">
-                Transfer Message
+                Transfer Spoken Message
               </label>
               <textarea
                 rows={2}
@@ -940,20 +1341,36 @@ export default function ScriptsView({ initialAction, onActionChange }) {
               />
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold text-neutral-800 dark:text-neutral-200">
+                Disqualification Spoken Message
+              </label>
+              <textarea
+                rows={2}
+                value={editDisqualifyMsg}
+                onChange={(e) => setEditDisqualifyMsg(e.target.value)}
+                className="w-full rounded-md border border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-[#151518] p-3 text-xs outline-none focus:border-blue-500"
+              />
+            </div>
+
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-800">
               <button
                 type="button"
                 onClick={(e) => handleSaveDraftEdits(e, false)}
-                className="px-4 py-2 font-bold text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100"
+                className="px-4 py-2 font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700"
               >
                 Save Draft
               </button>
               <button
                 type="button"
-                onClick={(e) => handleSaveDraftEdits(e, true)}
-                className="px-5 py-2 font-bold text-white bg-purple-600 rounded-md hover:bg-purple-700 shadow-xs"
+                onClick={async (e) => {
+                  await handleSaveDraftEdits(e, false);
+                  await handleActivateScript(activeScript.id);
+                }}
+                className="px-5 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md shadow-xs flex items-center gap-1.5"
               >
-                Submit for QA Approval
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Save & Activate Script</span>
               </button>
             </div>
           </form>

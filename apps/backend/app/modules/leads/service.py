@@ -294,12 +294,10 @@ async def update_batch_campaign(
 async def delete_batch(
     session: AsyncSession,
     user: UserContext,
-    job_id: uuid.UUID,
+    job_id: str,
 ) -> DataResponse[dict[str, Any]]:
     _ = user
-    success = await repo.delete_import_batch(session, job_id)
-    if not success:
-        raise NotFoundError("Lead import batch not found")
+    await repo.delete_import_batch(session, job_id)
     await session.commit()
     return DataResponse[dict[str, Any]](
         data={"deleted": True, "batchId": str(job_id)}

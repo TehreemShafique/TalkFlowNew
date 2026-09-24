@@ -7,24 +7,56 @@ import {
 } from "@/data";
 
 export function useCampaignState(initialAction, onActionChange) {
-  const [campaigns, setCampaigns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [teamAssignments, setTeamAssignments] = useState(CAMPAIGN_TEAM_ASSIGNMENTS);
+  const getStoredCampaigns = () => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("talkflow_campaigns");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  };
+
+  const saveStoredCampaigns = (camps) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("talkflow_campaigns", JSON.stringify(camps));
+    } catch (e) {}
+  };
+
+  const getStoredTeamAssignments = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("talkflow_team_assignments");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  };
+
+  const saveStoredTeamAssignments = (teams) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("talkflow_team_assignments", JSON.stringify(teams));
+    } catch (e) {}
+  };
+
+  const [campaigns, setCampaigns] = useState(() => getStoredCampaigns());
+  const [loading, setLoading] = useState(false);
+  const [teamAssignments, setTeamAssignments] = useState(() => getStoredTeamAssignments() || CAMPAIGN_TEAM_ASSIGNMENTS);
   const [activeScripts, setActiveScripts] = useState(CAMPAIGN_ACTIVE_SCRIPTS);
   const [liveOutcomes, setLiveOutcomes] = useState(CAMPAIGN_LIVE_OUTCOMES);
 
   const fetchCampaigns = async () => {
+    const localCamps = getStoredCampaigns();
     try {
       setLoading(true);
       const res = await apiFetch("/campaigns");
       if (res.ok) {
         const json = await res.json();
         const items = json.data || [];
-        // Map backend DTO to frontend campaign model
         const mapped = items.map((c) => ({
-          id: c.id,
+          id: String(c.id),
           name: c.name,
-          status: c.status,
+          status: c.status || "draft",
           dialMode: c.dialing?.dialMode || c.dialing?.dial_mode || "ratio",
           dialLevel: String(c.dialing?.dialLevel || c.dialing?.dial_level || "1.5"),
           amd: c.dialing?.amd || "Disabled",
@@ -35,14 +67,18 @@ export function useCampaignState(initialAction, onActionChange) {
             threeWay: c.dialing?.trunks?.threeWay || "trunk_vici_01",
           },
           recording: "On bridge",
-          userGroups: c.closerInGroup || "—",
+          userGroups: c.userGroups || c.user_groups || c.closerInGroup || "Sales_Agents",
           dialing: c.dialing || {},
           routing: { inboundQueue: "Default_Q", fallbackIvr: "Default_IVR" },
-          scriptId: c.scriptId || c.script_id || null,
-          activeScriptVersionId: c.activeScriptVersionId || c.active_script_version_id || null,
+          scriptId: c.scriptId || c.script_id || "s-medicare-01",
+          activeScriptVersionId: c.activeScriptVersionId || c.active_script_version_id || "v1.0",
           script: {
-            activeScript: (c.activeScriptVersionId || c.active_script_version_id) ? "Bound Active Script" : "No Script Bound",
-            version: (c.activeScriptVersionId || c.active_script_version_id) ? "Active" : "None",
+            activeScript: (c.script?.activeScript && c.script.activeScript !== "No Script Bound")
+              ? c.script.activeScript
+              : "Medicare Outbound Verification Script",
+            version: (c.script?.version && c.script.version !== "None")
+              ? c.script.version
+              : "v1.0",
           },
           transfer: { verifierPool: c.closerInGroup || "Unassigned" },
           performance: {
@@ -55,12 +91,28 @@ export function useCampaignState(initialAction, onActionChange) {
             dropRate: "0.0%",
           },
         }));
-        setCampaigns(mapped);
+
+        const map = {};
+        mapped.forEach((b) => { map[b.id] = b; });
+        localCamps.forEach((l) => {
+          if (!map[l.id]) {
+            map[l.id] = l;
+          }
+        });
+
+        const merged = Object.values(map);
+        setCampaigns(merged);
+        saveStoredCampaigns(merged);
+        return;
       }
     } catch {
       // Best-effort load
     } finally {
       setLoading(false);
+    }
+
+    if (localCamps.length > 0) {
+      setCampaigns(localCamps);
     }
   };
 
@@ -181,6 +233,51 @@ export function useCampaignState(initialAction, onActionChange) {
     e.preventDefault();
     if (!newCampName.trim()) return;
 
+    const newCampObj = {
+      id: `camp-${Date.now().toString().slice(-4)}`,
+      name: newCampName.trim(),
+      status: "draft",
+      dialMode: newDialMode,
+      dialLevel: String(newDialLevel),
+      amd: newAmd,
+      amdSub: newAmd === "Enabled" ? newAmdSub : null,
+      trunks: {
+        manual: newManualTrunk,
+        auto: newAutoTrunk,
+        threeWay: newThreeWayTrunk,
+      },
+      recording: "On bridge",
+      userGroups: newUserGroups || "Sales_Agents",
+      dialing: {
+        dialMode: newDialMode,
+        dialLevel: String(newDialLevel),
+        amd: newAmd,
+      },
+      routing: { inboundQueue: "Default_Q", fallbackIvr: "Default_IVR" },
+      scriptId: null,
+      activeScriptVersionId: null,
+      script: {
+        activeScript: "Medicare Outbound Verification Script",
+        version: "v1.0",
+      },
+      transfer: { verifierPool: "Unassigned" },
+      performance: {
+        callsDialed: "0",
+        answered: "0",
+        contactRate: "0.0%",
+        conversions: "0",
+        conversionRate: "0.0%",
+        avgDuration: "0m 00s",
+        dropRate: "0.0%",
+      },
+    };
+
+    setCampaigns((prev) => {
+      const updated = [newCampObj, ...prev];
+      saveStoredCampaigns(updated);
+      return updated;
+    });
+
     try {
       const res = await apiFetch("/campaigns", {
         method: "POST",
@@ -200,17 +297,29 @@ export function useCampaignState(initialAction, onActionChange) {
         }),
       });
 
-      if (res.ok) {
+      if (res && res.ok) {
         const json = await res.json();
         const created = json.data;
-        await fetchCampaigns();
-        setNewCampName("");
-        setIsModalOpen(false);
-        navigateToAction(created?.id || null);
+        if (created?.id) {
+          await fetchCampaigns();
+          setNewCampName("");
+          setIsModalOpen(false);
+          navigateToAction(String(created.id));
+          return;
+        }
       }
     } catch (err) {
-      console.error("Failed to create campaign:", err);
+      console.warn("Backend API unavailable, saving campaign locally:", err);
     }
+
+    setNewCampName("");
+    setIsModalOpen(false);
+    navigateToAction(newCampObj.id);
+  };
+
+  const handleSaveTeamAssignments = (updatedTeams) => {
+    setTeamAssignments(updatedTeams);
+    saveStoredTeamAssignments(updatedTeams);
   };
 
   const handleAddAgentToTeam = (e) => {
@@ -234,6 +343,128 @@ export function useCampaignState(initialAction, onActionChange) {
     );
     setNewAgentName("");
     setSelectedTeamCampaign(null);
+  };
+
+  const handleToggleCampaignStatus = async (targetId) => {
+    let nextStatus = "active";
+    setCampaigns((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id === targetId || c.name === targetId) {
+          nextStatus = c.status === "active" ? "paused" : "active";
+          return { ...c, status: nextStatus };
+        }
+        return c;
+      });
+      saveStoredCampaigns(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/campaigns/${targetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+    } catch (err) {
+      console.warn("Failed to update status on API:", err);
+    }
+  };
+
+  const handleDeleteCampaign = async (targetId) => {
+    if (typeof window !== "undefined" && !window.confirm("Are you sure you want to delete this campaign?")) {
+      return;
+    }
+    setCampaigns((prev) => {
+      const updated = prev.filter((c) => c.id !== targetId && c.name !== targetId);
+      saveStoredCampaigns(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/campaigns/${targetId}`, { method: "DELETE" });
+    } catch (err) {
+      console.warn("Failed to delete campaign on API:", err);
+    }
+  };
+
+  const handleBindScriptToCampaign = (targetCampId, targetScript) => {
+    setCampaigns((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id === targetCampId || c.name === targetCampId) {
+          return {
+            ...c,
+            scriptId: targetScript.id,
+            activeScriptVersionId: targetScript.active_version_id || targetScript.id,
+            script: {
+              activeScript: targetScript.name,
+              version: targetScript.version || "v1.0",
+            },
+          };
+        }
+        return c;
+      });
+      saveStoredCampaigns(updated);
+      return updated;
+    });
+  };
+
+  const handleUpdateCampaignTransferRules = async (targetId, transferData) => {
+    setCampaigns((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id === targetId || c.name === targetId) {
+          return {
+            ...c,
+            transfer: {
+              ...c.transfer,
+              ...transferData,
+            },
+          };
+        }
+        return c;
+      });
+      saveStoredCampaigns(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/campaigns/${targetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          transfer: transferData,
+        }),
+      });
+    } catch (err) {
+      console.warn("Backend API unavailable for campaign transfer rules update:", err);
+    }
+  };
+
+  const handleUpdateCampaignRouting = async (targetId, routingData) => {
+    setCampaigns((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id === targetId || c.name === targetId) {
+          return {
+            ...c,
+            routing: {
+              ...c.routing,
+              didMappings: routingData,
+            },
+          };
+        }
+        return c;
+      });
+      saveStoredCampaigns(updated);
+      return updated;
+    });
+
+    try {
+      await apiFetch(`/campaigns/${targetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          routing: { didMappings: routingData },
+        }),
+      });
+    } catch (err) {
+      console.warn("Backend API unavailable for campaign routing update:", err);
+    }
   };
 
   return {
@@ -277,6 +508,12 @@ export function useCampaignState(initialAction, onActionChange) {
     setNewThreeWayTrunk,
     handleCreateCampaignSubmit,
     handleAddAgentToTeam,
+    handleSaveTeamAssignments,
+    handleToggleCampaignStatus,
+    handleDeleteCampaign,
+    handleBindScriptToCampaign,
+    handleUpdateCampaignTransferRules,
+    handleUpdateCampaignRouting,
     navigateToAction,
     fetchCampaigns,
   };

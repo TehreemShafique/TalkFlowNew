@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, Activity } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Activity, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function CallHistoryView({
   totalCallsCount,
@@ -14,6 +15,19 @@ export default function CallHistoryView({
   onOpenLive,
   onOpenCall,
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dispositionFilter, searchQuery]);
+
+  const totalItems = filteredCalls.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedCalls = filteredCalls.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header Title & Navigation Actions */}
@@ -110,7 +124,7 @@ export default function CallHistoryView({
       </div>
 
       {/* Main CDR Table */}
-      <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-5 shadow-xs">
+      <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-5 shadow-xs flex flex-col gap-4">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-xs text-left">
             <thead>
@@ -126,70 +140,113 @@ export default function CallHistoryView({
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/60">
-              {filteredCalls.map((call) => (
-                <tr
-                  key={call.id}
-                  onClick={() => onOpenCall(call.id)}
-                  className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50"
-                >
-                  <td className="px-4 py-4 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline">
-                    {call.callId}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-neutral-900 dark:text-white">
-                        {call.leadName}
+              {paginatedCalls.length > 0 ? (
+                paginatedCalls.map((call) => (
+                  <tr
+                    key={call.id}
+                    onClick={() => onOpenCall(call.id)}
+                    className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50"
+                  >
+                    <td className="px-4 py-4 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      {call.callId}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-neutral-900 dark:text-white">
+                          {call.leadName}
+                        </span>
+                        <span className="font-mono text-[11px] text-neutral-500">
+                          {call.phone}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 font-semibold text-neutral-800 dark:text-neutral-200">
+                      {call.campaign}
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                          String(call.disposition).includes("QUALIFIED") ||
+                          String(call.disposition).includes("SALE") ||
+                          String(call.disposition).includes("TRANSFERRED")
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : String(call.disposition).includes("DISQUALIFIED") ||
+                              String(call.disposition).includes("OPTED_OUT") ||
+                              String(call.disposition).includes("DNC")
+                            ? "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                            : "border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                        }`}
+                      >
+                        {call.disposition || "QUALIFIED"}
                       </span>
-                      <span className="font-mono text-[11px] text-neutral-500">
-                        {call.phone}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 font-semibold text-neutral-800 dark:text-neutral-200">
-                    {call.campaign}
-                  </td>
-                  <td className="px-4 py-4">
-                    {call.disposition.includes("SALE") && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-                        {call.disposition}
-                      </span>
-                    )}
-                    {call.disposition.includes("RAXFER") && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
-                        {call.disposition}
-                      </span>
-                    )}
-                    {call.disposition.includes("DNC") && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-700">
-                        {call.disposition}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 font-mono text-neutral-600 dark:text-neutral-400">
-                    {call.duration}
-                  </td>
-                  <td className="px-4 py-4 text-neutral-700 dark:text-neutral-300 font-medium">
-                    {call.agent}
-                  </td>
-                  <td className="px-4 py-4 font-bold text-emerald-600">
-                    {call.qaScore}%
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenCall(call.id);
-                      }}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1 text-xs font-semibold hover:bg-neutral-100"
-                    >
-                      <span>View Detail</span>
-                    </button>
+                    </td>
+                    <td className="px-4 py-4 font-mono text-neutral-600 dark:text-neutral-400">
+                      {call.duration}
+                    </td>
+                    <td className="px-4 py-4 text-neutral-700 dark:text-neutral-300 font-medium">
+                      {call.agent}
+                    </td>
+                    <td className="px-4 py-4 font-bold text-emerald-600">
+                      {call.qaScore}%
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenCall(call.id);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1 text-xs font-semibold hover:bg-neutral-100"
+                      >
+                        <span>View Detail</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-xs text-neutral-500 italic">
+                    No matching call records found.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-800 text-xs">
+          <div className="text-neutral-500">
+            Showing <strong className="text-neutral-900 dark:text-white">{totalItems > 0 ? startIndex + 1 : 0}</strong> to{" "}
+            <strong className="text-neutral-900 dark:text-white">{Math.min(startIndex + itemsPerPage, totalItems)}</strong> of{" "}
+            <strong className="text-neutral-900 dark:text-white">{totalItems}</strong> Call Records
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </button>
+
+            <span className="px-3 py-1 font-bold text-neutral-800 dark:text-neutral-200">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

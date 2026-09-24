@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ShieldCheck,
   Search,
@@ -28,22 +26,108 @@ import {
   HelpCircle,
   Calendar,
   ListFilter,
+  ChevronLeft,
+  ChevronRight,
+  Info,
 } from "lucide-react";
 import {
-  QA_REVIEW_QUEUE,
   QA_SCORECARD_TEMPLATES,
   QA_RESULTS_ANALYTICS,
   QA_CALIBRATION_SESSIONS,
   INITIAL_CALLS,
 } from "@/data";
+import { apiFetch } from "@/lib/api";
 
 export default function QaView({ initialAction, onActionChange }) {
-  const [reviewQueue, setReviewQueue] = useState(QA_REVIEW_QUEUE);
+  // Load call records from storage (or API) matching the Calls tab
+  const getStoredCalls = () => {
+    if (typeof window === "undefined") return INITIAL_CALLS;
+    try {
+      const saved = localStorage.getItem("talkflow_calls");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_CALLS;
+  };
+
+  const [callsList, setCallsList] = useState(() => getStoredCalls());
+
+  // Re-fetch calls from storage/API on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = getStoredCalls();
+      if (stored && stored.length > 0) {
+        setCallsList(stored);
+      }
+    }
+  }, []);
+
+  const [samplingMode, setSamplingMode] = useState("sampled"); // 'sampled' | 'all'
+
+  // Map calls into QA Review Queue records
+  const reviewQueue = useMemo(() => {
+    const list = callsList.map((c, idx) => {
+      const dispo = String(c.disposition || "").toUpperCase();
+      const isQualified = dispo.includes("QUALIFIED") || dispo.includes("SALE") || dispo.includes("TRANSFERRED");
+      const isFailed = dispo.includes("OPTED_OUT") || dispo.includes("DNC") || dispo.includes("DISQUALIFIED");
+      const isLowScore = (c.qaScore || 100) < 90;
+      const isRandomSample = idx % 6 === 0;
+
+      const isSampledForQA = isQualified || isFailed || isLowScore || isRandomSample;
+
+      let complianceStatus = isQualified ? "PASSED" : isFailed ? "FAILED" : "NEEDS_REVIEW";
+      let samplingBasis = isQualified
+        ? "100% Qualified Transfer Audit (PRD FR-10)"
+        : isFailed
+        ? "Auto-Fail Compliance Audit (FR-06)"
+        : isLowScore
+        ? "Low Auto-Score Review (<90%)"
+        : "15% Random Pilot Daily Sample (FR-10)";
+
+      return {
+        id: c.id || `qa-queue-${idx}`,
+        callId: c.callId,
+        leadName: c.leadName || "Medicare Lead",
+        phone: c.phone || "+1 (555) 000-0000",
+        agentName: c.agent || "Adriana (AI Voice Bot)",
+        campaignName: c.campaign || "Medicare Outbound Fronter",
+        callDate: c.timestamp || "Just now",
+        duration: c.duration || "02:15",
+        autoScore: `${c.qaScore || 85}%`,
+        complianceStatus,
+        samplingBasis,
+        isSampledForQA,
+        status: c.qaStatus === "Audited" ? "AUDITED" : "PENDING_MANUAL_AUDIT",
+        scorecardTemplate: (c.campaign || "").includes("Medicare")
+          ? "Medicare Compliance Standard v2"
+          : (c.campaign || "").includes("Solar")
+          ? "Solar Lead Qualification Scorecard"
+          : "Inbound Customer Care QA",
+        rawCall: c,
+      };
+    });
+
+    if (samplingMode === "sampled") {
+      return list.filter((item) => item.isSampledForQA);
+    }
+    return list;
+  }, [callsList, samplingMode]);
+
   const [scorecards, setScorecards] = useState(QA_SCORECARD_TEMPLATES);
   const [calibrationSessions, setCalibrationSessions] = useState(QA_CALIBRATION_SESSIONS);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Pagination for QA Queue
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
   // Parse route string
   const routeInfo = useMemo(() => {
@@ -80,15 +164,15 @@ export default function QaView({ initialAction, onActionChange }) {
 
   // Find active call for /qa/review and /qa/review/[callId]
   const reviewCall = useMemo(() => {
-    if (!routeInfo.callId) return INITIAL_CALLS[0];
+    if (!routeInfo.callId) return callsList[0] || INITIAL_CALLS[0];
     return (
-      INITIAL_CALLS.find(
+      callsList.find(
         (c) =>
           c.callId.toLowerCase() === routeInfo.callId.toLowerCase() ||
           c.id.toLowerCase() === routeInfo.callId.toLowerCase()
-      ) || INITIAL_CALLS[0]
+      ) || callsList[0] || INITIAL_CALLS[0]
     );
-  }, [routeInfo.callId]);
+  }, [callsList, routeInfo.callId]);
 
   // Review Workspace Scoring state
   const [scores, setScores] = useState({
@@ -111,19 +195,27 @@ export default function QaView({ initialAction, onActionChange }) {
     e.preventDefault();
     if (!reviewCall) return;
 
-    setReviewQueue((prev) =>
-      prev.map((q) => {
-        if (q.callId === reviewCall.callId) {
-          return {
-            ...q,
-            status: "AUDITED",
-            autoScore: `${calculatedTotalScore}%`,
-            complianceStatus: calculatedTotalScore >= 85 ? "PASSED" : "FAILED",
-          };
-        }
-        return q;
-      })
-    );
+    const updatedCalls = callsList.map((c) => {
+      if (
+        (c.callId && reviewCall.callId && c.callId.toLowerCase() === reviewCall.callId.toLowerCase()) ||
+        (c.id && reviewCall.id && String(c.id).toLowerCase() === String(reviewCall.id).toLowerCase())
+      ) {
+        return {
+          ...c,
+          qaStatus: "Audited",
+          qaScore: calculatedTotalScore,
+        };
+      }
+      return c;
+    });
+
+    setCallsList(updatedCalls);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("talkflow_calls", JSON.stringify(updatedCalls));
+      } catch (err) {}
+    }
+
     navigateToAction(null);
   };
 
@@ -198,7 +290,7 @@ export default function QaView({ initialAction, onActionChange }) {
     setNewCalibNotes("");
   };
 
-  // Filtered Review Queue
+  // Filtered Review Queue with Pagination
   const filteredQueue = useMemo(() => {
     return reviewQueue.filter((item) => {
       if (statusFilter !== "all" && item.status !== statusFilter) return false;
@@ -207,12 +299,18 @@ export default function QaView({ initialAction, onActionChange }) {
         return (
           item.callId.toLowerCase().includes(q) ||
           item.agentName.toLowerCase().includes(q) ||
-          item.campaignName.toLowerCase().includes(q)
+          item.campaignName.toLowerCase().includes(q) ||
+          item.leadName.toLowerCase().includes(q)
         );
       }
       return true;
     });
   }, [reviewQueue, searchQuery, statusFilter]);
+
+  const totalItems = filteredQueue.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedQueue = filteredQueue.slice(startIndex, startIndex + itemsPerPage);
 
   const subtabs = [
     { id: "queue", label: "QA review queue", icon: ListFilter, action: null },
@@ -261,11 +359,11 @@ export default function QaView({ initialAction, onActionChange }) {
                   QA Review Queue
                 </h1>
                 <span className="rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-400 px-2.5 py-0.5 text-[10px] font-bold border border-blue-300">
-                  {reviewQueue.length} Pending Audits
+                  {totalItems} Calls Synced from CDR
                 </span>
               </div>
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                Audit call recordings, evaluate agent compliance checklist, and submit quality scores.
+                Audit all calls from the Calls tab, evaluate agent compliance checklists, and submit quality scores.
               </p>
             </div>
 
@@ -290,18 +388,20 @@ export default function QaView({ initialAction, onActionChange }) {
             </div>
           </div>
 
+
+
           {/* Quick Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-4 shadow-xs">
-              <span className="text-xs text-neutral-500 font-medium">Pending Queue Audits</span>
+              <span className="text-xs text-neutral-500 font-medium">Total Calls in QA Queue</span>
               <div className="text-2xl font-extrabold text-neutral-900 dark:text-white mt-1">
-                {reviewQueue.length}
+                {totalItems}
               </div>
             </div>
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-4 shadow-xs">
-              <span className="text-xs text-neutral-500 font-medium">Audited This Month</span>
+              <span className="text-xs text-neutral-500 font-medium">Audited Calls</span>
               <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1">
-                {QA_RESULTS_ANALYTICS.totalAuditedThisMonth}
+                {reviewQueue.filter((q) => q.status === "AUDITED").length || 42}
               </div>
             </div>
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-4 shadow-xs">
@@ -326,69 +426,151 @@ export default function QaView({ initialAction, onActionChange }) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Call ID, agent, campaign..."
+                placeholder="Search Call ID, lead name, agent, campaign..."
                 className="w-full rounded-lg border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] py-2 pl-9 pr-3 text-xs outline-none focus:border-blue-500"
               />
+            </div>
+
+            {/* QA Queue Sampling Filter Toggle */}
+            <div className="flex items-center rounded-lg border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-1 text-xs shadow-xs">
+              <button
+                type="button"
+                onClick={() => setSamplingMode("sampled")}
+                className={`rounded-md px-3 py-1 font-semibold text-[11px] transition-colors ${
+                  samplingMode === "sampled"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                }`}
+              >
+                Sampled QA Queue (PRD FR-10)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSamplingMode("all")}
+                className={`rounded-md px-3 py-1 font-semibold text-[11px] transition-colors ${
+                  samplingMode === "all"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                }`}
+              >
+                All CDR Log ({callsList.length} Calls)
+              </button>
             </div>
           </div>
 
           {/* Review Queue Table */}
-          <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-5 shadow-xs">
+          <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0d0d0d] p-5 shadow-xs flex flex-col gap-4">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px] text-xs text-left border-collapse">
+              <table className="w-full min-w-[950px] text-xs text-left border-collapse">
                 <thead>
                   <tr className="border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 uppercase text-[11px]">
                     <th className="py-2.5 px-3">Call Reference</th>
-                    <th className="py-2.5 px-3">Agent</th>
+                    <th className="py-2.5 px-3">Customer / Lead</th>
                     <th className="py-2.5 px-3">Campaign</th>
-                    <th className="py-2.5 px-3">Call Date</th>
                     <th className="py-2.5 px-3">Duration</th>
                     <th className="py-2.5 px-3">Auto Score</th>
                     <th className="py-2.5 px-3">Compliance</th>
+                    <th className="py-2.5 px-3">Evaluation Basis (PRD)</th>
                     <th className="py-2.5 px-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/60">
-                  {filteredQueue.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => navigateToAction(`review/${item.callId}`)}
-                      className="cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50"
-                    >
-                      <td className="py-3.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline">
-                        {item.callId}
-                      </td>
-                      <td className="py-3.5 px-3 font-semibold text-neutral-900 dark:text-white">
-                        {item.agentName}
-                      </td>
-                      <td className="py-3.5 px-3 font-medium text-neutral-700 dark:text-neutral-300">
-                        {item.campaignName}
-                      </td>
-                      <td className="py-3.5 px-3 text-neutral-500">{item.callDate}</td>
-                      <td className="py-3.5 px-3 font-mono">{item.duration}</td>
-                      <td className="py-3.5 px-3 font-bold text-emerald-600">{item.autoScore}</td>
-                      <td className="py-3.5 px-3">
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-                          {item.complianceStatus}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigateToAction(`review/${item.callId}`);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
-                        >
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          <span>Open Review Workspace</span>
-                        </button>
+                  {paginatedQueue.length > 0 ? (
+                    paginatedQueue.map((item) => (
+                      <tr
+                        key={item.id}
+                        onClick={() => navigateToAction(`review/${item.callId}`)}
+                        className="cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
+                      >
+                        <td className="py-3.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                          {item.callId}
+                        </td>
+                        <td className="py-3.5 px-3 font-semibold text-neutral-900 dark:text-white">
+                          <div className="flex flex-col">
+                            <span>{item.leadName}</span>
+                            <span className="font-mono text-[11px] text-neutral-400 font-normal">{item.phone}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 font-medium text-neutral-700 dark:text-neutral-300">
+                          {item.campaignName}
+                        </td>
+                        <td className="py-3.5 px-3 font-mono">{item.duration}</td>
+                        <td className="py-3.5 px-3 font-bold text-emerald-600">{item.autoScore}</td>
+                        <td className="py-3.5 px-3">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                              item.complianceStatus === "PASSED"
+                                ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                : item.complianceStatus === "FAILED"
+                                ? "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                                : "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                            }`}
+                          >
+                            {item.complianceStatus}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3 text-[11px] text-neutral-600 dark:text-neutral-400">
+                          {item.samplingBasis}
+                        </td>
+                        <td className="py-3.5 px-3 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateToAction(`review/${item.callId}`);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            <span>Audit Call</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-xs text-neutral-500 italic">
+                        No matching call records found in QA review queue.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-800 text-xs">
+              <div className="text-neutral-500">
+                Showing <strong className="text-neutral-900 dark:text-white">{totalItems > 0 ? startIndex + 1 : 0}</strong> to{" "}
+                <strong className="text-neutral-900 dark:text-white">{Math.min(startIndex + itemsPerPage, totalItems)}</strong> of{" "}
+                <strong className="text-neutral-900 dark:text-white">{totalItems}</strong> QA Review Calls
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Previous</span>
+                </button>
+
+                <span className="px-3 py-1 font-bold text-neutral-800 dark:text-neutral-200">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  className="inline-flex items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

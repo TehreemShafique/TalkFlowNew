@@ -32,6 +32,14 @@ const STAT_ICONS = {
   "11": { Icon: HelpCircle, bg: "bg-amber-400", colorHex: "#f59e0b", path: "M 0,35 L 0,20 C 45,30 75,12 120,18 L 120,35 Z", line: "M 0,20 C 45,30 75,12 120,18" },
 };
 
+const VALUE_COLORS = {
+  "3": "#16A34A", // SALE (Green)
+  "4": "#16A34A", // SALE % (Green)
+  "9": "#DC2626", // DC (Red)
+  "10": "#DC2626", // DNC (Red)
+  "11": "#F59E0B", // DNQ (Orange)
+};
+
 function CardWaveGraph({ colorHex, gradientId, path, line }) {
   return (
     <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 w-full overflow-hidden">
@@ -95,6 +103,7 @@ export default function StatsGrid() {
             };
             const IconComponent = meta.Icon;
             const gradientId = `wave-grad-${item.id}`;
+            const customColor = VALUE_COLORS[item.id];
 
             return (
               <div
@@ -114,11 +123,23 @@ export default function StatsGrid() {
 
                 {/* Bottom Row: Large Metric Value */}
                 <div className="mt-3 mb-1 flex items-baseline gap-1 z-10">
-                  <span className="text-xl font-black italic tracking-tight text-neutral-900 sm:text-2xl dark:text-white">
+                  <span
+                    className="text-xl font-medium tracking-tight text-neutral-900 sm:text-2xl dark:text-white"
+                    style={{
+                      fontFamily: "'Times New Roman', Times, serif",
+                      color: customColor || undefined,
+                    }}
+                  >
                     {item.value}
                   </span>
                   {item.unit && (
-                    <span className="text-xs font-bold italic text-neutral-500 dark:text-neutral-400">
+                    <span
+                      className="text-xs font-normal text-neutral-500 dark:text-neutral-400"
+                      style={{
+                        fontFamily: "'Times New Roman', Times, serif",
+                        color: customColor || undefined,
+                      }}
+                    >
                       {item.unit}
                     </span>
                   )}

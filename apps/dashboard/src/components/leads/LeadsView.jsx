@@ -148,7 +148,12 @@ export default function LeadsView({ initialAction, onActionChange }) {
       {state.viewMode === "suppression" && (
         <SuppressionListView
           suppressionList={state.suppressionList}
-          onAddDnc={() => state.setIsDncModalOpen(true)}
+          suppressionBatches={state.suppressionBatches}
+          selectedSuppressionBatch={state.selectedSuppressionBatch}
+          onSelectSuppressionBatch={state.handleSelectSuppressionBatch}
+          onClearSelectedSuppressionBatch={state.handleClearSelectedSuppressionBatch}
+          onDeleteSuppressionBatch={state.handleDeleteSuppressionBatch}
+          onImportSuppressionFile={() => state.setIsSuppressionImportModalOpen(true)}
         />
       )}
 
@@ -171,13 +176,9 @@ export default function LeadsView({ initialAction, onActionChange }) {
         newStatus={state.newStatus}
         onNewStatus={state.setNewStatus}
         onAddLeadSubmit={state.handleAddLead}
-        isDncModalOpen={state.isDncModalOpen}
-        onCloseDncModal={() => state.setIsDncModalOpen(false)}
-        newDncPhone={state.newDncPhone}
-        onNewDncPhone={state.setNewDncPhone}
-        newDncReason={state.newDncReason}
-        onNewDncReason={state.setNewDncReason}
-        onAddDncSubmit={state.handleAddDnc}
+        isSuppressionImportModalOpen={state.isSuppressionImportModalOpen}
+        onCloseSuppressionImportModal={() => state.setIsSuppressionImportModalOpen(false)}
+        onImportSuppressionFileSubmit={state.handleImportSuppressionFileSubmit}
       />
     </div>
   );

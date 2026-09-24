@@ -42,35 +42,32 @@ export default function CampaignsView({ initialAction, onActionChange }) {
           totalCampaigns={state.campaigns.length}
           onSort={state.handleSort}
           onOpenCampaign={state.navigateToAction}
+          onDeleteCampaign={state.handleDeleteCampaign}
         />
       )}
 
       {/* SUBTAB 2: PERFORMANCE REVIEW VIEW (/campaigns/performance) */}
       {state.currentMode === "subtab" && state.activeSubtab === "performance" && (
-        <CampaignMetricsGrid />
+        <CampaignMetricsGrid campaigns={state.campaigns} />
       )}
 
       {/* SUBTAB 3: ASSIGN TEAM VIEW (/campaigns/team) */}
       {state.currentMode === "subtab" && state.activeSubtab === "team" && (
         <TeamAssignmentPanel
+          campaigns={state.campaigns}
           teamAssignments={state.teamAssignments}
-          selectedTeamCampaign={state.selectedTeamCampaign}
-          newAgentName={state.newAgentName}
-          onOpenAssign={state.setSelectedTeamCampaign}
-          onCloseAssign={() => state.setSelectedTeamCampaign(null)}
-          onNewAgentNameChange={state.setNewAgentName}
-          onSubmitAssign={state.handleAddAgentToTeam}
+          onUpdateTeam={state.handleSaveTeamAssignments}
         />
       )}
 
       {/* SUBTAB 4: ACTIVE SCRIPTS VIEW (/campaigns/scripts) */}
       {state.currentMode === "subtab" && state.activeSubtab === "scripts" && (
-        <ActiveScriptsPanel activeScripts={state.activeScripts} />
+        <ActiveScriptsPanel campaigns={state.campaigns} activeScripts={state.activeScripts} />
       )}
 
       {/* SUBTAB 5: LIVE OUTCOMES VIEW (/campaigns/outcomes) */}
       {state.currentMode === "subtab" && state.activeSubtab === "outcomes" && (
-        <LiveOutcomesPanel liveOutcomes={state.liveOutcomes} />
+        <LiveOutcomesPanel />
       )}
 
       {/* ROUTE 2: CREATE CAMPAIGN PAGE (/campaigns/new) */}
@@ -105,6 +102,7 @@ export default function CampaignsView({ initialAction, onActionChange }) {
             subRoute={state.subRoute}
             onBack={() => state.navigateToAction(null)}
             onNavigate={state.navigateToAction}
+            onToggleStatus={state.handleToggleCampaignStatus}
           />
           {(state.subRoute === "overview" || !state.subRoute) && (
             <CampaignOverviewPanels campaign={state.selectedCampaign} />
@@ -113,13 +111,23 @@ export default function CampaignsView({ initialAction, onActionChange }) {
             <CampaignDialingForm campaign={state.selectedCampaign} />
           )}
           {state.subRoute === "routing" && (
-            <CampaignRoutingForm campaign={state.selectedCampaign} />
+            <CampaignRoutingForm
+              campaign={state.selectedCampaign}
+              onUpdateRoutingRules={state.handleUpdateCampaignRouting}
+            />
           )}
           {state.subRoute === "script" && (
-            <CampaignScriptBinding campaign={state.selectedCampaign} onRefresh={state.fetchCampaigns} />
+            <CampaignScriptBinding
+              campaign={state.selectedCampaign}
+              onRefresh={state.fetchCampaigns}
+              onBindScript={state.handleBindScriptToCampaign}
+            />
           )}
           {state.subRoute === "transfer" && (
-            <CampaignTransferRules campaign={state.selectedCampaign} />
+            <CampaignTransferRules
+              campaign={state.selectedCampaign}
+              onUpdateTransferRules={state.handleUpdateCampaignTransferRules}
+            />
           )}
           {state.subRoute === "performance" && (
             <CampaignPerformancePanel campaign={state.selectedCampaign} />

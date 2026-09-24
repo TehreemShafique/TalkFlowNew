@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Megaphone, Sliders, GitFork, FileCode, ShieldCheck, BarChart3 } from "lucide-react";
 
-export default function CampaignDetailHeader({ campaign, subRoute, onBack, onNavigate }) {
+export default function CampaignDetailHeader({ campaign, subRoute, onBack, onNavigate, onToggleStatus }) {
   const NAV_CARDS = [
     { id: "overview", label: "Overview", icon: Megaphone, path: campaign.id },
     { id: "dialing", label: "Dialing Settings", icon: Sliders, path: `${campaign.id}/dialing` },
@@ -11,6 +11,9 @@ export default function CampaignDetailHeader({ campaign, subRoute, onBack, onNav
     { id: "transfer", label: "Verifier Transfer", icon: ShieldCheck, path: `${campaign.id}/transfer` },
     { id: "performance", label: "Analytics", icon: BarChart3, path: `${campaign.id}/performance` },
   ];
+
+  const isActive = campaign.status === "active";
+  const isPaused = campaign.status === "paused";
 
   return (
     <>
@@ -29,21 +32,39 @@ export default function CampaignDetailHeader({ campaign, subRoute, onBack, onNav
               <h2 className="text-xl font-bold text-neutral-900 dark:text-white">
                 {campaign.name}
               </h2>
-              <span className="font-mono text-xs font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
-                {campaign.id}
-              </span>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              Domain: {campaign.domain} • Type: {campaign.type}
-            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/70 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            {campaign.status.toUpperCase()}
-          </span>
+        <div className="flex items-center gap-3">
+          {isActive ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/70 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              ACTIVE
+            </span>
+          ) : isPaused ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/70 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">
+              PAUSED
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-1 text-xs font-bold text-neutral-700 dark:text-neutral-300">
+              DRAFT
+            </span>
+          )}
+
+          {onToggleStatus && (
+            <button
+              type="button"
+              onClick={() => onToggleStatus(campaign.id)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors ${
+                isActive
+                  ? "border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white"
+              }`}
+            >
+              {isActive ? "Pause Campaign" : "Activate Campaign"}
+            </button>
+          )}
         </div>
       </div>
 

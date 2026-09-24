@@ -1,58 +1,13 @@
-# Environment
-.env
-.env.*
-!.env.example
+# Ignore everything
+*
 
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-.venv/
-venv/
+# Keep apps directory
+!apps/
 
-# Node
-node_modules/
-.next/
-out/
-.turbo/
+# Keep backend
+!apps/backend/
+!apps/backend/**
 
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Local data
-/data/
-models/
-recordings/
-secrets/
-
-# Docker
-docker-data/
-
-# Secrets
-*.pem
-*.key
-
-# Coverage
-coverage/
-htmlcov/
-# Phase 5 TTS generation environment
-tools/tts-assets/.venv/
-tools/tts-assets/models/*.onnx
-tools/tts-assets/models/*.bin
-
-# Generated preview audio
-assets/tts/**/*.wav
-
-# Audio
-*.wav
-*.pcm
+# Keep dashboard
+!apps/dashboard/
+!apps/dashboard/**

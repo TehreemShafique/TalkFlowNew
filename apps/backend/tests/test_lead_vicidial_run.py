@@ -560,3 +560,50 @@ async def test_realtime_dnc_guard_blocks_and_registers_in_vicidial_dnc(monkeypat
     assert lead_dnc.suppression_reason == "dnc_guard"
     assert result.data.accepted == 1
     assert result.data.rejected == 1
+
+
+@pytest.mark.asyncio
+async def test_dynamic_vicidial_list_id_ingest_and_execution(monkeypatch):
+    """Verify that a batch with a dynamic vicidial_list_id uses that list ID when starting run."""
+    configure_vicidial(monkeypatch)
+    job = make_job(vicidial_list_id="9099")
+    leads = [make_lead(job, "13125550099", "dyn999")]
+
+    async def get_job(_s, _j, _c=None):
+        return job
+
+    async def list_leads(_s, _j, *, pending_only=False, limit=None):
+        return leads
+
+    monkeypatch.setattr(leads_repo, "get_import_job", get_job)
+    monkeypatch.setattr(leads_repo, "list_batch_leads", list_leads)
+
+    result = await leads_service.set_vicidial_run(
+        FakeSession(), make_user(), job.id, is_active=True
+    )
+
+    assert result.data.vicidial_list_id == "9099"
+    client = FakeClient.instances[-1]
+    assert client.added[0]["list_id"] == "9099"
+
+
+@pytest.mark.asyncio
+async def test_update_batch_vicidial_list_service(monkeypatch):
+    """Verify updating the VICIdial list ID for a batch persisted to database."""
+    updated: list[tuple[uuid.UUID, str | None]] = []
+
+    async def fake_update_job_vicidial_list(_s, job_id, list_id):
+        updated.append((job_id, list_id))
+
+    monkeypatch.setattr(leads_repo, "update_job_vicidial_list", fake_update_job_vicidial_list)
+
+    batch_id = uuid.uuid4()
+    res = await leads_service.update_batch_vicidial_list(
+        FakeSession(), make_user(), batch_id, "1001"
+    )
+
+    assert res.data["status"] == "ok"
+    assert res.data["vicidialListId"] == "1001"
+    assert len(updated) == 1
+    assert updated[0] == (batch_id, "1001")
+

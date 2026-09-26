@@ -82,6 +82,8 @@ export default function LeadImportWizard({
   activeCampaigns = [],
   importCampaignId = "",
   onImportCampaignChange,
+  importVicidialListId = "",
+  onImportVicidialListIdChange,
 }) {
   // The backend refuses a mapping with no phone column, so say so before the
   // round trip instead of letting the user submit and eat a 422.
@@ -201,27 +203,46 @@ export default function LeadImportWizard({
               </span>
             </div>
 
-            {/* Campaign assignment - applied by the backend to every committed row */}
-            <div className="flex flex-col gap-1.5 p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-[#121215]">
-              <label htmlFor="import-campaign" className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                Assign to Campaign
-              </label>
-              <select
-                id="import-campaign"
-                value={importCampaignId}
-                onChange={(e) => onImportCampaignChange && onImportCampaignChange(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Unassigned</option>
-                {activeCampaigns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Optional. Applied to every lead this file creates.
-              </span>
+            {/* Campaign assignment & VICIdial List ID */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-[#121215]">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="import-campaign" className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                  Assign to Campaign
+                </label>
+                <select
+                  id="import-campaign"
+                  value={importCampaignId}
+                  onChange={(e) => onImportCampaignChange && onImportCampaignChange(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Unassigned</option>
+                  {activeCampaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Optional. Applied to every lead this file creates.
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="import-vicidial-list" className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                  VICIdial List ID
+                </label>
+                <input
+                  id="import-vicidial-list"
+                  type="text"
+                  placeholder="e.g. 9099"
+                  value={importVicidialListId}
+                  onChange={(e) => onImportVicidialListIdChange && onImportVicidialListIdChange(e.target.value)}
+                  className={inputClass}
+                />
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Numeric VICIdial List ID created in VICIdial Admin (e.g. 9099).
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">

@@ -94,6 +94,7 @@ export default function LeadBatchesRegistryTable({
   activeCampaigns,
   onSelectBatch,
   onAssignCampaign,
+  onUpdateVicidialList,
   onDeleteBatch,
   onToggleVicidialRun,
   vicidialBusyBatchId,
@@ -186,13 +187,27 @@ export default function LeadBatchesRegistryTable({
                       </td>
 
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                        {batch.vicidialListId ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-950/60 px-2.5 py-0.5 font-mono font-bold text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60">
-                            List {batch.vicidialListId}
-                          </span>
-                        ) : (
-                          <span className="text-neutral-400 dark:text-neutral-500">Not assigned</span>
-                        )}
+                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#121215] px-2.5 py-1 focus-within:border-blue-500 transition-colors">
+                          <span className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400">VICIdial List ID:</span>
+                          <input
+                            type="text"
+                            placeholder="e.g. 9099"
+                            defaultValue={batch.vicidialListId || ""}
+                            key={`${batch.id}-${batch.vicidialListId || ""}`}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== (batch.vicidialListId || "") && onUpdateVicidialList) {
+                                onUpdateVicidialList(batch.id, val || null);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.target.blur();
+                              }
+                            }}
+                            className="w-20 bg-transparent text-xs font-mono font-bold text-violet-700 dark:text-violet-300 outline-none"
+                          />
+                        </div>
                       </td>
 
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>

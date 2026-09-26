@@ -36,6 +36,7 @@ from app.modules.leads.schemas import (
     LeadUpdate,
     MappingRequest,
     UpdateBatchCampaignRequest,
+    UpdateBatchVicidialListRequest,
     VicidialRunRequest,
     VicidialRunResultDTO,
 )
@@ -72,6 +73,21 @@ async def update_batch_campaign(
 ):
     """Assign or update the target campaign for an imported lead batch."""
     return await service.update_batch_campaign(db, actor, batch_id, payload.campaign_id)
+
+
+@router.patch(
+    "/batches/{batch_id}/vicidial-list", response_model=DataResponse[dict[str, Any]]
+)
+async def update_batch_vicidial_list(
+    batch_id: uuid.UUID,
+    payload: UpdateBatchVicidialListRequest,
+    actor: EditGate,
+    db: DbSession,
+):
+    """Assign or update the target VICIdial list ID for an imported lead batch."""
+    return await service.update_batch_vicidial_list(
+        db, actor, batch_id, payload.vicidial_list_id
+    )
 
 
 @router.delete("/batches/{batch_id}", response_model=DataResponse[dict[str, Any]])

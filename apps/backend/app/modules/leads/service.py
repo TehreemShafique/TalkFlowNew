@@ -195,6 +195,7 @@ def _to_import_job_dto(job: LeadImportJob) -> ImportJobDTO:
         validation=validation,
         error_report_url=error_report_url,
         campaign_id=job.campaign_id,
+        vicidial_list_id=job.vicidial_list_id,
         created_by=job.created_by,
         created_at=job.created_at,
         updated_at=job.updated_at,
@@ -327,6 +328,24 @@ async def update_batch_campaign(
     )
 
 
+async def update_batch_vicidial_list(
+    session: AsyncSession,
+    user: UserContext,
+    job_id: uuid.UUID,
+    vicidial_list_id: str | None,
+) -> DataResponse[dict[str, Any]]:
+    _ = user
+    await repo.update_job_vicidial_list(session, job_id, vicidial_list_id)
+    await session.commit()
+    return DataResponse[dict[str, Any]](
+        data={
+            "status": "ok",
+            "jobId": str(job_id),
+            "vicidialListId": str(vicidial_list_id) if vicidial_list_id else None,
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # VICIdial run control (lead-list registry)
 # ---------------------------------------------------------------------------
@@ -337,8 +356,11 @@ async def update_batch_campaign(
 _MAX_HOPPER_INGEST = 500
 
 
-def _resolve_run_credentials() -> tuple[str, str, str]:
+def _resolve_run_credentials(job: LeadImportJob | None = None) -> tuple[str, str, str]:
     """Return ``(list_id, campaign_id, source)`` for the hopper ingest.
+
+    Reads the specific `job.vicidial_list_id` from target batch record if present,
+    using `.env`'s `VICIDIAL_LIST_ID` only as fallback default if list ID is null.
 
     Raises :class:`VicidialNotConfiguredError` when the dialer has no API user
     configured - a silent no-op here would show a green "running" tick in the
@@ -347,7 +369,8 @@ def _resolve_run_credentials() -> tuple[str, str, str]:
     creds = get_vicidial_credentials()
     if not creds.user or not creds.password or not creds.url:
         raise VicidialNotConfiguredError()
-    return creds.default_list_id, creds.default_campaign_id, creds.source
+    list_id = (job.vicidial_list_id if job and job.vicidial_list_id else None) or creds.default_list_id
+    return list_id, creds.default_campaign_id, creds.source
 
 
 async def set_vicidial_run(
@@ -412,7 +435,7 @@ async def set_vicidial_run(
         )
 
     # --- Start the run -----------------------------------------------------
-    default_list_id, default_campaign_id, source = _resolve_run_credentials()
+    default_list_id, default_campaign_id, source = _resolve_run_credentials(job)
     resolved_list_id = str(job.vicidial_list_id or default_list_id)
     job.vicidial_list_id = resolved_list_id
 
@@ -805,6 +828,8 @@ async def save_mapping(
 
     job.mapping = payload.mapping
     job.campaign_id = payload.campaign_id
+    if payload.vicidial_list_id is not None:
+        job.vicidial_list_id = str(payload.vicidial_list_id)
     job.options = {
         "assigned_to": str(payload.assigned_to) if payload.assigned_to else None,
         "initial_status": payload.initial_status.value,

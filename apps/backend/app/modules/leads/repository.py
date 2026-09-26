@@ -225,6 +225,17 @@ async def update_job_campaign(
     await session.execute(stmt)
 
 
+async def update_job_vicidial_list(
+    session: AsyncSession, job_id: uuid.UUID, vicidial_list_id: str | None
+) -> None:
+    stmt = (
+        update(LeadImportJob)
+        .where(LeadImportJob.id == job_id)
+        .values(vicidial_list_id=vicidial_list_id)
+    )
+    await session.execute(stmt)
+
+
 async def list_batch_leads(
     session: AsyncSession,
     job: LeadImportJob,

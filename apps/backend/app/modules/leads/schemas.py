@@ -147,6 +147,10 @@ class UpdateBatchCampaignRequest(APIBaseModel):
     campaign_id: uuid.UUID | None = None
 
 
+class UpdateBatchVicidialListRequest(APIBaseModel):
+    vicidial_list_id: str | None = None
+
+
 class VicidialRunRequest(APIBaseModel):
     """Start or stop the dialer run for one imported lead list.
 
@@ -211,6 +215,7 @@ class MappingRequest(APIBaseModel):
 
     mapping: dict[str, str]
     campaign_id: uuid.UUID | None = None
+    vicidial_list_id: str | None = None
     assigned_to: uuid.UUID | None = None
     initial_status: LeadStatus = LeadStatus.NEW
     options: ImportOptions = Field(default_factory=ImportOptions)
@@ -241,6 +246,7 @@ class ImportJobDTO(APIBaseModel):
     validation: ValidationSummary | None = None
     error_report_url: str | None = None
     campaign_id: uuid.UUID | None = None
+    vicidial_list_id: str | None = None
     created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime

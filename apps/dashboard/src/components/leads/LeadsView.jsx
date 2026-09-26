@@ -48,6 +48,7 @@ export default function LeadsView({ initialAction, onActionChange }) {
           activeCampaigns={state.activeCampaigns}
           onSelectBatch={state.handleSelectBatch}
           onAssignCampaign={state.handleAssignCampaign}
+          onUpdateVicidialList={state.handleUpdateVicidialList}
           onDeleteBatch={state.handleDeleteBatch}
           onToggleVicidialRun={state.handleToggleVicidialRun}
           vicidialBusyBatchId={state.vicidialBusyBatchId}
@@ -141,6 +142,8 @@ export default function LeadsView({ initialAction, onActionChange }) {
           activeCampaigns={state.activeCampaigns}
           importCampaignId={state.importCampaignId}
           onImportCampaignChange={state.setImportCampaignId}
+          importVicidialListId={state.importVicidialListId}
+          onImportVicidialListIdChange={state.setImportVicidialListId}
         />
       )}
 

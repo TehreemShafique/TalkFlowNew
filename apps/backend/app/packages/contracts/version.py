@@ -9,4 +9,4 @@ The drift gate (CI step 6 / Rule R10) fails if a checked-in change to the API
 (delta schema, new route, changed model) is not accompanied by both of these.
 """
 
-CONTRACT_VERSION = "0.5.0"
+CONTRACT_VERSION = "0.6.0"

@@ -2956,6 +2956,17 @@
                 "type": "null"
               }
             ]
+          },
+          "vicidialListId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidiallistid"
           }
         },
         "required": [
@@ -3978,6 +3989,17 @@
           },
           "options": {
             "$ref": "#/components/schemas/ImportOptions"
+          },
+          "vicidialListId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidiallistid"
           }
         },
         "required": [
@@ -8145,6 +8167,24 @@
         "title": "UpdateBatchCampaignRequest",
         "type": "object"
       },
+      "UpdateBatchVicidialListRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "vicidialListId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidiallistid"
+          }
+        },
+        "title": "UpdateBatchVicidialListRequest",
+        "type": "object"
+      },
       "UpdateProfileRequest": {
         "additionalProperties": false,
         "description": "Editable profile fields.  `password`/`collaborator_pin` are re-hashed.",
@@ -8838,7 +8878,7 @@
   },
   "info": {
     "title": "TalkFlow Control Plane",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -11989,6 +12029,65 @@
           }
         ],
         "summary": "Update Batch Campaign",
+        "tags": [
+          "leads"
+        ]
+      }
+    },
+    "/api/v1/leads/batches/{batch_id}/vicidial-list": {
+      "patch": {
+        "description": "Assign or update the target VICIdial list ID for an imported lead batch.",
+        "operationId": "update_batch_vicidial_list_api_v1_leads_batches__batch_id__vicidial_list_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBatchVicidialListRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_dict_str__Any__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Batch Vicidial List",
         "tags": [
           "leads"
         ]

@@ -644,6 +644,7 @@ export function useLeadsState(initialAction, onActionChange) {
     setImportValidation(null);
     setImportResult(null);
     setImportCampaignId("");
+    setImportVicidialListId("");
     navigateToAction("import");
   };
 
@@ -707,6 +708,30 @@ export function useLeadsState(initialAction, onActionChange) {
 
     // Re-read either way: on success this is the confirmation, on failure it
     // rolls the optimistic row back to what the server actually has.
+    await loadBatches();
+  };
+
+  const handleUpdateVicidialList = async (batchId, vicidialListId) => {
+    setBatchError(null);
+
+    setBatches((prev) =>
+      prev.map((b) =>
+        String(b.id) === String(batchId)
+          ? normalizeBatch({ ...b, vicidialListId: vicidialListId || null, vicidial_list_id: vicidialListId || null })
+          : b
+      )
+    );
+
+    const res = await apiFetch(`/leads/batches/${batchId}/vicidial-list`, {
+      method: "PATCH",
+      body: JSON.stringify({ vicidial_list_id: vicidialListId || null }),
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setBatchError(describeApiFailure(res.status, body));
+    }
+
     await loadBatches();
   };
 
@@ -814,6 +839,7 @@ export function useLeadsState(initialAction, onActionChange) {
   const [importResult, setImportResult] = useState(null);
   const [importBusy, setImportBusy] = useState(null);
   const [importCampaignId, setImportCampaignId] = useState("");
+  const [importVicidialListId, setImportVicidialListId] = useState("");
 
   // STEP 1-2: hand the file to the backend. It parses the CSV, infers the
   // columns, and parks a LeadImportJob in `mapping`; nothing is written to the
@@ -879,6 +905,7 @@ export function useLeadsState(initialAction, onActionChange) {
         body: JSON.stringify({
           mapping: buildMappingPayload(columnMapping),
           ...(importCampaignId ? { campaignId: importCampaignId } : {}),
+          ...(importVicidialListId ? { vicidialListId: importVicidialListId } : {}),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -1217,6 +1244,7 @@ export function useLeadsState(initialAction, onActionChange) {
     batchColumns,
     handleSelectBatch,
     handleAssignCampaign,
+    handleUpdateVicidialList,
     handleToggleVicidialRun,
     vicidialBusyBatchId,
     vicidialError,
@@ -1271,6 +1299,8 @@ export function useLeadsState(initialAction, onActionChange) {
     importResult,
     importCampaignId,
     setImportCampaignId,
+    importVicidialListId,
+    setImportVicidialListId,
     activeCampaigns,
     importTargetFields: IMPORT_TARGET_FIELDS,
     importCustomField: IMPORT_CUSTOM_FIELD,

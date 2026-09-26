@@ -9,6 +9,7 @@ events, and the export history/download with phone masking for non-PII roles.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from app.core.security import create_access_token
 from app.modules.exports.policies import ExportPolicy, build_csv, masked_phone
@@ -27,7 +28,7 @@ from app.modules.suppression.policies import (
 )
 from app.modules.users_rbac import repository as users_repo
 from app.packages.contracts.enums import SuppressionReason, UserStatus
-from app.packages.db.models import Lead, User
+from app.packages.db.models import Lead, User, UserSession
 from app.packages.phone import normalize_us_phone
 
 # ---------------------------------------------------------------------------
@@ -165,6 +166,7 @@ async def _reporting_headers(seeded) -> dict:
     role = None
     uid = uuid.uuid4()
     email = "qa-test-reporter@phonova.io"
+    token, jti = create_access_token({"sub": email})
     async with seeded["factory"]() as db:
         role = await users_repo.find_role_by_name(db, "REPORTING_USER")
         db.add(
@@ -181,8 +183,19 @@ async def _reporting_headers(seeded) -> dict:
         )
         await db.flush()
         await users_repo.replace_user_roles(db, uid, [role.id])
+        # ``require_auth`` verifies the DB-backed session ledger, so the minted
+        # token needs a live ``user_sessions`` row keyed by its jti.
+        db.add(
+            UserSession(
+                id=uuid.uuid4(),
+                user_id=uid,
+                token_id=jti,
+                ip_address="127.0.0.1",
+                user_agent="pytest",
+                last_seen_at=datetime.now(UTC),
+            )
+        )
         await db.commit()
-    token, _ = create_access_token({"sub": email})
     return {"Authorization": f"Bearer {token}"}
 
 

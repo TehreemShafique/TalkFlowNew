@@ -7,7 +7,8 @@ preserves the metadata row in call_recordings, and writes recording.purged audit
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,11 +26,15 @@ async def run_retention_purger(session: AsyncSession) -> int:
     now = datetime.now(UTC)
 
     # Find READY recordings whose expires_at has passed or audio retention cutoff reached
-    stmt = select(CallRecording).where(
-        CallRecording.status == RecordingStatus.READY.value,
-        CallRecording.expires_at.is_not(None),
-        CallRecording.expires_at <= now,
-    ).limit(100)
+    stmt = (
+        select(CallRecording)
+        .where(
+            CallRecording.status == RecordingStatus.READY.value,
+            CallRecording.expires_at.is_not(None),
+            CallRecording.expires_at <= now,
+        )
+        .limit(100)
+    )
 
     res = await session.execute(stmt)
     recordings = res.scalars().all()
@@ -43,8 +48,12 @@ async def run_retention_purger(session: AsyncSession) -> int:
         if rec.storage_key:
             try:
                 await provider.delete(rec.storage_key)
-            except Exception as exc:
-                logger.warning("failed deleting audio file during purge", recording_id=str(rec.id), error=str(exc))
+            except Exception as exc:  # noqa: BLE001 - one bad object must not block a purge cycle
+                logger.warning(
+                    "failed deleting audio file during purge",
+                    recording_id=str(rec.id),
+                    error=str(exc),
+                )
 
         # Preserve metadata row; update status & audio_purged_at
         rec.status = RecordingStatus.PURGED.value

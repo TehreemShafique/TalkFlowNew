@@ -17,7 +17,11 @@ export default function CampaignPerformancePanel({ campaign }) {
         } catch (err) {}
       }
       try {
-        const res = await apiFetch("/calls?page_size=500");
+        // `pageSize` (camelCase) is the registered query key; `page_size` was
+        // silently dropped and returned the default 20-row page. The server
+        // caps page size at 200, so requesting 500 is a 422 - these stats are
+        // computed over the most recent 200 calls.
+        const res = await apiFetch("/calls?pageSize=200");
         if (res && res.ok) {
           const json = await res.json();
           const apiCalls = json.data || json.items || [];

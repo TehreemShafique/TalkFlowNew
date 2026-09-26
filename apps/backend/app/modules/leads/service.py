@@ -18,6 +18,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 import structlog
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +38,9 @@ from app.modules.leads.errors import (
     ImportNoMappingError,
     LeadInvalidPhoneError,
     LeadNotFoundError,
+    VicidialIngestFailedError,
+    VicidialNotConfiguredError,
+    VicidialNothingToSubmitError,
 )
 from app.modules.leads.events import (
     IMPORT_JOB_AGGREGATE,
@@ -65,13 +69,21 @@ from app.modules.leads.schemas import (
     LeadListQuery,
     LeadUpdate,
     MappingRequest,
-    UpdateBatchCampaignRequest,
     ValidationSummary,
+    VicidialRunResultDTO,
 )
 from app.packages.contracts.base import DataResponse, PagedMeta, PagedResponse
-from app.packages.contracts.enums import AuditResult, ImportJobStatus, LeadStatus
+from app.packages.contracts.enums import (
+    AuditResult,
+    ImportJobStatus,
+    LeadStatus,
+    VicidialRunStatus,
+)
 from app.packages.db.models import Lead, LeadImportJob
 from app.packages.phone import normalize_us_phone
+from app.packages.vicidial.client import VicidialClient
+from app.packages.vicidial.credentials import get_vicidial_credentials
+from app.packages.vicidial.parser import extract_added_lead_id
 
 logger = structlog.get_logger("leads.service")
 
@@ -144,6 +156,24 @@ def _to_dto(row: tuple[Lead, str | None]) -> LeadDTO:
         created_at=lead.created_at,
         updated_at=lead.updated_at,
     )
+
+
+def _column_names(columns: Any) -> list[str]:
+    """Flatten a job's column previews down to their header names.
+
+    ``LeadImportJob.columns`` stores ``{"name", "sample_values"}`` objects for the
+    mapping table, but the batch registry DTO (and the dashboard table that
+    consumes it) is a plain list of header strings.
+    """
+    names: list[str] = []
+    for column in columns or []:
+        if isinstance(column, dict):
+            name = column.get("name")
+        else:
+            name = column
+        if name:
+            names.append(str(name))
+    return names
 
 
 def _to_import_job_dto(job: LeadImportJob) -> ImportJobDTO:
@@ -263,10 +293,16 @@ async def list_batches(
             status=ImportJobStatus(job.status),
             total_rows=job.total_rows,
             imported_rows=job.imported_rows,
-            columns=job.columns or [],
+            columns=_column_names(job.columns),
             campaign_id=job.campaign_id,
             campaign_name=campaign_name,
             created_at=job.created_at,
+            vicidial_list_id=job.vicidial_list_id,
+            vicidial_run_count=job.vicidial_run_count,
+            vicidial_status=VicidialRunStatus(job.vicidial_status),
+            is_active_for_vicidial=job.is_active_for_vicidial,
+            vicidial_started_at=job.vicidial_started_at,
+            vicidial_stopped_at=job.vicidial_stopped_at,
         )
         for job, campaign_name in rows
     ]
@@ -291,16 +327,259 @@ async def update_batch_campaign(
     )
 
 
+# ---------------------------------------------------------------------------
+# VICIdial run control (lead-list registry)
+# ---------------------------------------------------------------------------
+# Bounds one hopper ingest. A 25k-row batch cannot be pushed in a single
+# request without holding the connection open for minutes, so the toggle queues
+# at most this many records and reports the rest as not-submitted. The operator
+# re-toggles to continue; ``run_count`` only advances on a successful push.
+_MAX_HOPPER_INGEST = 500
+
+
+def _resolve_run_credentials() -> tuple[str, str, str]:
+    """Return ``(list_id, campaign_id, source)`` for the hopper ingest.
+
+    Raises :class:`VicidialNotConfiguredError` when the dialer has no API user
+    configured - a silent no-op here would show a green "running" tick in the
+    dashboard for a list that is in fact sitting in TalkFlow only.
+    """
+    creds = get_vicidial_credentials()
+    if not creds.user or not creds.password or not creds.url:
+        raise VicidialNotConfiguredError()
+    return creds.default_list_id, creds.default_campaign_id, creds.source
+
+
+async def set_vicidial_run(
+    session: AsyncSession,
+    user: UserContext,
+    job_id: uuid.UUID,
+    *,
+    is_active: bool,
+    vicidial_list_id: str | None = None,
+    campaign_id: uuid.UUID | None = None,
+) -> DataResponse[VicidialRunResultDTO]:
+    """Start or stop the VICIdial run for one imported lead list.
+
+    Starting pushes the batch's committed leads into the dialer hopper with
+    ``add_to_hopper`` set and increments ``vicidial_run_count``.  Stopping only
+    records ``interrupted`` in TalkFlow: the non-agent API exposes no
+    list/hopper pause, so records already queued may still be dialed.
+    """
+    job = await repo.get_import_job(session, job_id, resolve_scope_constraints(user))
+    if job is None:
+        raise ImportJobNotFoundError(job_id)
+
+    now = datetime.now(UTC)
+
+    # Persist an explicit list/campaign override before acting on it so the
+    # registry shows the same mapping the ingest actually used.
+    if campaign_id is not None and job.campaign_id != campaign_id:
+        job.campaign_id = campaign_id
+    if vicidial_list_id:
+        job.vicidial_list_id = str(vicidial_list_id)
+
+    if not is_active:
+        job.vicidial_status = VicidialRunStatus.INTERRUPTED.value
+        job.is_active_for_vicidial = False
+        job.vicidial_stopped_at = now
+        await write_audit(
+            session,
+            actor_id=user.user_id,
+            actor_role=user.role,
+            action="lead.vicidial_run.stop",
+            resource_type="lead_import_job",
+            resource_id=str(job.id),
+            result=AuditResult.SUCCESS,
+            details={"vicidial_list_id": job.vicidial_list_id},
+        )
+        await publish_lead_event(
+            session,
+            aggregate_type=IMPORT_JOB_AGGREGATE,
+            aggregate_id=job.id,
+            event_type=LeadEventType.VICIDIAL_RUN_STOPPED,
+            payload={"vicidial_list_id": job.vicidial_list_id},
+        )
+        await session.commit()
+        return DataResponse[VicidialRunResultDTO](
+            data=VicidialRunResultDTO(
+                batch_id=job.id,
+                vicidial_list_id=job.vicidial_list_id,
+                vicidial_run_count=job.vicidial_run_count,
+                vicidial_status=VicidialRunStatus(job.vicidial_status),
+                is_active_for_vicidial=False,
+            )
+        )
+
+    # --- Start the run -----------------------------------------------------
+    default_list_id, default_campaign_id, source = _resolve_run_credentials()
+    resolved_list_id = str(job.vicidial_list_id or default_list_id)
+    job.vicidial_list_id = resolved_list_id
+
+    dialer_campaign_id = default_campaign_id
+    if job.campaign_id is not None:
+        name = await repo.campaign_name(session, job.campaign_id)
+        if name:
+            dialer_campaign_id = name
+
+    # Only leads the dialer has never accepted are eligible, so re-toggling ON
+    # continues the ingest instead of re-pushing leads already in the hopper.
+    leads = await repo.list_batch_leads(
+        session, job, pending_only=True, limit=_MAX_HOPPER_INGEST
+    )
+    submitted = leads
+    errors: list[str] = []
+    dialer_lead_ids: list[str] = []
+    id_pairs: list[tuple[str, uuid.UUID]] = []
+
+    if submitted:
+        phones_to_check = [
+            phone for lead in submitted
+            if (phone := (lead.phone_normalized or lead.phone_raw)) is not None
+        ]
+        suppressed_set = await repo.active_suppressed_phones(session, phones_to_check)
+
+        creds = get_vicidial_credentials()
+        async with VicidialClient(creds) as client:
+            for lead in submitted:
+                phone = lead.phone_normalized or lead.phone_raw
+                if not phone:
+                    errors.append(f"{lead.external_key}: no dialable phone number")
+                    continue
+
+                # Real-Time DNC Cross-Check Guard (Anti-Lawsuit Protection)
+                is_dnc = (
+                    phone in suppressed_set
+                    or lead.suppressed
+                    or (lead.status and str(lead.status).lower() in ("dnc", "suppressed", "opt-out", "opt_out", "do not call"))
+                )
+
+                if is_dnc:
+                    lead.suppressed = True
+                    lead.suppression_reason = "dnc_guard"
+                    try:
+                        await client.add_dnc_phone(phone)
+                        logger.info("dnc guard blocked lead and registered in vicidial dnc", phone=phone, lead_id=str(lead.id))
+                    except Exception as exc:
+                        logger.warning("failed to register blocked phone in vicidial dnc", phone=phone, error=str(exc))
+                    errors.append(f"{lead.external_key}: blocked by Real-Time DNC Cross-Check Guard & registered in VICIdial DNC")
+                    continue
+
+                try:
+                    response = await client.add_lead(
+                        phone,
+                        list_id=resolved_list_id,
+                        campaign_id=dialer_campaign_id,
+                        add_to_hopper=True,
+                        vendor_lead_code=lead.external_key,
+                    )
+                except httpx.HTTPError as exc:
+                    # A transport failure is not a per-lead rejection: the whole
+                    # dialer is unreachable, so stop hammering it.
+                    logger.warning(
+                        "vicidial hopper ingest aborted",
+                        batch_id=str(job.id),
+                        reason=str(exc),
+                    )
+                    errors.append(f"dialer unreachable: {exc}")
+                    break
+
+                if not response.success:
+                    errors.append(
+                        f"{lead.external_key}: {response.error or 'rejected by dialer'}"
+                    )
+                    continue
+
+                dialer_id = extract_added_lead_id(response)
+                if dialer_id:
+                    dialer_lead_ids.append(dialer_id)
+                    id_pairs.append((dialer_id, lead.id))
+
+    if not leads:
+        # Every lead in this batch already has a dialer id, so there is nothing
+        # left to hand to the hopper.  Do not burn a run count on a no-op.
+        raise VicidialNothingToSubmitError(
+            details={"batch_id": str(job.id), "vicidial_list_id": resolved_list_id}
+        )
+
+    if not dialer_lead_ids:
+        # Nothing reached the dialer - leave the list idle rather than claim a
+        # run that never happened.
+        job.vicidial_status = VicidialRunStatus.IDLE.value
+        job.is_active_for_vicidial = False
+        await session.commit()
+        raise VicidialIngestFailedError(
+            details={
+                "submitted": len(submitted),
+                "accepted": 0,
+                "errors": errors[:10],
+            }
+        )
+
+    await repo.set_vicidial_lead_ids(session, id_pairs)
+    job.vicidial_run_count += 1
+    job.vicidial_status = VicidialRunStatus.RUNNING.value
+    job.is_active_for_vicidial = True
+    job.vicidial_started_at = now
+    job.vicidial_stopped_at = None
+
+    accepted = len(dialer_lead_ids)
+    result = VicidialRunResultDTO(
+        batch_id=job.id,
+        vicidial_list_id=resolved_list_id,
+        vicidial_run_count=job.vicidial_run_count,
+        vicidial_status=VicidialRunStatus.RUNNING,
+        is_active_for_vicidial=True,
+        submitted=len(submitted),
+        accepted=accepted,
+        rejected=len(errors),
+        dialer_lead_ids=dialer_lead_ids,
+        errors=errors[:10],
+    )
+
+    await write_audit(
+        session,
+        actor_id=user.user_id,
+        actor_role=user.role,
+        action="lead.vicidial_run.start",
+        resource_type="lead_import_job",
+        resource_id=str(job.id),
+        result=AuditResult.SUCCESS,
+        details={
+            "vicidial_list_id": resolved_list_id,
+            "dialer_campaign_id": dialer_campaign_id,
+            "source": source,
+            "submitted": result.submitted,
+            "accepted": accepted,
+            "rejected": result.rejected,
+        },
+    )
+    await publish_lead_event(
+        session,
+        aggregate_type=IMPORT_JOB_AGGREGATE,
+        aggregate_id=job.id,
+        event_type=LeadEventType.VICIDIAL_RUN_STARTED,
+        payload={
+            "vicidial_list_id": resolved_list_id,
+            "dialer_campaign_id": dialer_campaign_id,
+            "run_count": job.vicidial_run_count,
+            "accepted": accepted,
+        },
+    )
+    await session.commit()
+    return DataResponse[VicidialRunResultDTO](data=result)
+
+
 async def delete_batch(
     session: AsyncSession,
     user: UserContext,
     job_id: str,
 ) -> DataResponse[dict[str, Any]]:
     _ = user
-    await repo.delete_import_batch(session, job_id)
+    deleted = await repo.delete_import_batch(session, job_id)
     await session.commit()
     return DataResponse[dict[str, Any]](
-        data={"deleted": True, "batchId": str(job_id)}
+        data={"deleted": deleted, "batchId": str(job_id)}
     )
 
 

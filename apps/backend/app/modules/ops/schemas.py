@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import Any
+
 from pydantic import Field
 
 from app.packages.contracts.base import APIBaseModel
@@ -38,7 +39,9 @@ class AlertDTO(APIBaseModel):
 
 class SearchQueryDTO(APIBaseModel):
     q: str = Field(min_length=1, max_length=120)
-    type: str | None = Field(default=None, description="calls | leads | campaigns | recordings | scripts")
+    type: str | None = Field(
+        default=None, description="calls | leads | campaigns | recordings | scripts"
+    )
 
 
 class SearchItemDTO(APIBaseModel):
@@ -47,7 +50,7 @@ class SearchItemDTO(APIBaseModel):
     title: str
     subtitle: str | None = None
     url: str | None = None
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class SearchResultResponseDTO(APIBaseModel):

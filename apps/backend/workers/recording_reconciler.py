@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+
 import structlog
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.packages.contracts.enums import RecordingStatus
@@ -30,7 +31,9 @@ async def run_reconciler(session: AsyncSession) -> int:
             Call.ended_at <= cutoff,
             ~Call.id.in_(
                 select(CallRecording.call_id).where(
-                    CallRecording.status.in_([RecordingStatus.READY.value, RecordingStatus.FAILED.value])
+                    CallRecording.status.in_(
+                        [RecordingStatus.READY.value, RecordingStatus.FAILED.value]
+                    )
                 )
             ),
         )
@@ -46,7 +49,9 @@ async def run_reconciler(session: AsyncSession) -> int:
     for row in rows:
         call_id, campaign_id, lead_id = row.id, row.campaign_id, row.lead_id
         # Check if pending row already exists
-        rec_stmt = select(CallRecording).where(CallRecording.call_id == call_id).limit(1)
+        rec_stmt = (
+            select(CallRecording).where(CallRecording.call_id == call_id).limit(1)
+        )
         rec = (await session.execute(rec_stmt)).scalar_one_or_none()
 
         if not rec:

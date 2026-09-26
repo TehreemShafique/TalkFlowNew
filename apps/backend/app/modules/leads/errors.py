@@ -11,6 +11,8 @@ from typing import Any
 from app.packages.contracts.errors import (
     ConflictError,
     NotFoundError,
+    ServiceUnavailableError,
+    UpstreamError,
     ValidationError,
     register_error,
 )
@@ -44,6 +46,21 @@ register_error(
     "lead.invalid_phone",
     422,
     "The phone number is not a valid US number.",
+)
+register_error(
+    "lead.vicidial_not_configured",
+    503,
+    "VICIdial integration is not configured.",
+)
+register_error(
+    "lead.vicidial_ingest_failed",
+    502,
+    "VICIdial rejected the lead list; no records were queued for dialing.",
+)
+register_error(
+    "lead.vicidial_nothing_to_submit",
+    422,
+    "Every lead in this list has already been queued for dialing.",
 )
 
 
@@ -99,3 +116,18 @@ class ImportFileTooLargeError(ValidationError):
 class LeadInvalidPhoneError(ValidationError):
     def __init__(self) -> None:
         super().__init__("lead.invalid_phone")
+
+
+class VicidialNotConfiguredError(ServiceUnavailableError):
+    def __init__(self) -> None:
+        super().__init__("lead.vicidial_not_configured")
+
+
+class VicidialIngestFailedError(UpstreamError):
+    def __init__(self, details: dict[str, Any] | None = None) -> None:
+        super().__init__("lead.vicidial_ingest_failed", details=details)
+
+
+class VicidialNothingToSubmitError(ValidationError):
+    def __init__(self, details: dict[str, Any] | None = None) -> None:
+        super().__init__("lead.vicidial_nothing_to_submit", details=details)

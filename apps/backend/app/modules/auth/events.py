@@ -11,6 +11,7 @@ from app.packages.db.models import outbox_table
 
 class AuthEventType(StrEnum):
     SESSION_CREATED = "auth.session.created"
+    SESSION_REFRESHED = "auth.session.refreshed"
     SESSION_REVOKED = "auth.session.revoked"
     SIGNUP_REQUESTED = "auth.signup.requested"
 

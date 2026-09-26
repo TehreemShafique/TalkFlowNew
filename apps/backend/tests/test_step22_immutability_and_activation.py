@@ -31,15 +31,17 @@ async def test_approved_version_cannot_be_mutated(engine):
 
         await db_session.execute(
             text(
-                "INSERT INTO scripts (id, name, status) VALUES (:id, 'Test Script', 'approved')"
+                "INSERT INTO scripts (id, name, status, created_at, updated_at) "
+                "VALUES (:id, 'Test Script', 'approved', now(), now())"
             ),
             {"id": script_id},
         )
         await db_session.execute(
             text(
                 """
-                INSERT INTO script_versions (id, script_id, version, status, nodes)
-                VALUES (:id, :sid, 1, 'approved', '[]'::jsonb)
+                INSERT INTO script_versions
+                    (id, script_id, version, status, nodes, updated_at)
+                VALUES (:id, :sid, 1, 'approved', '[]'::jsonb, now())
                 """
             ),
             {"id": version_id, "sid": script_id},
@@ -89,13 +91,15 @@ async def test_concurrent_activation_yields_exactly_one(engine):
         )
         await session.execute(
             text(
-                "INSERT INTO script_versions (id, script_id, version, status) VALUES (:id, :sid, 1, 'approved')"
+                "INSERT INTO script_versions (id, script_id, version, status, updated_at) "
+                "VALUES (:id, :sid, 1, 'approved', now())"
             ),
             {"id": v1_id, "sid": script_id},
         )
         await session.execute(
             text(
-                "INSERT INTO script_versions (id, script_id, version, status) VALUES (:id, :sid, 2, 'approved')"
+                "INSERT INTO script_versions (id, script_id, version, status, updated_at) "
+                "VALUES (:id, :sid, 2, 'approved', now())"
             ),
             {"id": v2_id, "sid": script_id},
         )
@@ -108,8 +112,11 @@ async def test_concurrent_activation_yields_exactly_one(engine):
                 await s.execute(
                     text(
                         """
-                        INSERT INTO script_activations (id, script_id, script_version_id, campaign_id, activated_at)
-                        VALUES (:id, :sid, :vid, :cid, clock_timestamp())
+                        INSERT INTO script_activations
+                            (id, script_id, script_version_id, campaign_id,
+                             activated_at, created_at, updated_at)
+                        VALUES (:id, :sid, :vid, :cid, clock_timestamp(),
+                                clock_timestamp(), clock_timestamp())
                         """
                     ),
                     {"id": act_id, "sid": script_id, "vid": ver_id, "cid": campaign_id},

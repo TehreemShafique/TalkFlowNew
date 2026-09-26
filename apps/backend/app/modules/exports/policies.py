@@ -117,10 +117,13 @@ def build_csv(
 ) -> bytes:
     """Serialize the row dicts into CSV bytes (RFC 4180 line endings).
 
-    Ordering follows ``headers``; caller_number / phone columns are omitted or
-    masked for non-PII tenants.
+    Ordering follows ``headers``; for non-PII tenants ``caller_number`` is
+    dropped entirely (it is the dialer-side raw number) while ``phone`` is kept
+    as a masked value so the column layout stays stable for every tenant.
     """
-    effective_headers = [h for h in headers if not (mask_phone and h in ("caller_number", "phone"))] if mask_phone else headers
+    effective_headers = (
+        [h for h in headers if h != "caller_number"] if mask_phone else headers
+    )
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=effective_headers, extrasaction="ignore")
     writer.writeheader()
@@ -131,7 +134,9 @@ def build_csv(
                 row_copy["phone"] = masked_phone(str(row_copy["phone"]))
             if "caller_number" in row_copy and row_copy.get("caller_number"):
                 row_copy["caller_number"] = masked_phone(str(row_copy["caller_number"]))
-        writer.writerow({header: _cell(row_copy.get(header)) for header in effective_headers})
+        writer.writerow(
+            {header: _cell(row_copy.get(header)) for header in effective_headers}
+        )
     return buffer.getvalue().encode("utf-8")
 
 

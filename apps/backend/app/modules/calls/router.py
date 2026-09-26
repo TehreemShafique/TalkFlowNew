@@ -137,6 +137,7 @@ async def get_script_path(
 # Step 37 Call Recording Serving
 # ---------------------------------------------------------------------------
 
+
 @router.get("/{call_id}/recording")
 async def get_call_recording(
     call_id: uuid.UUID,
@@ -145,6 +146,7 @@ async def get_call_recording(
 ):
     """Fetch recording details for call (Step 37)."""
     from app.modules.recordings import service as rec_service
+
     return await rec_service.get_recording_by_call_id(db, actor, call_id)
 
 
@@ -156,6 +158,7 @@ async def get_call_playback_url(
 ):
     """5-minute presigned playback URL + audited recording.played (Step 37)."""
     from app.modules.recordings import service as rec_service
+
     url = await rec_service.get_call_playback_url(db, actor, call_id)
     return {"data": {"url": url}}
 
@@ -168,5 +171,6 @@ async def get_call_download_token(
 ):
     """Single-use download token + audited recording.downloaded (Step 37)."""
     from app.modules.recordings import service as rec_service
+
     token = await rec_service.get_call_download_token(db, actor, call_id)
     return {"data": {"token": token}}

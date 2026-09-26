@@ -40,6 +40,7 @@ class DownloadTokenStore:
     def __init__(self, client: redis.Redis | None = None) -> None:
         self.client = client or get_redis()
         self._prefix = "grant:download"
+        self._local_used: set[str] = set()
 
     async def consume(self, jti: str) -> bool:
         """Atomically consume a grant; returns True only if unused."""
@@ -53,6 +54,9 @@ class DownloadTokenStore:
             return result is True
         except Exception as exc:  # noqa: BLE001 - Redis unavailable fallback
             log.warning("download token consume failed", error=str(exc))
+            if jti in self._local_used:
+                return False
+            self._local_used.add(jti)
             return True
 
 

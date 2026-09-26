@@ -81,6 +81,12 @@ ROLE_SEED: list[dict] = [
         "description": "Call performance metrics, report generation & analytics access.",
         "is_system": True,
     },
+    {
+        "name": "COMPLIANCE_OFFICER",
+        "domain": RoleDomain.QUALITY.value,
+        "description": "Compliance review of recorded audio with privileged PHI access.",
+        "is_system": True,
+    },
 ]
 
 
@@ -137,7 +143,7 @@ def serialize_role(role: Role) -> RolePublic:
         domain=role.domain,
         description=role.description,
         is_system=role.is_system,
-        permissions=sorted(ROLE_PERMISSIONS.get(role.name, ())),
+        permissions=sorted(ROLE_PERMISSIONS.get(role.name.upper(), ())),
     )
 
 

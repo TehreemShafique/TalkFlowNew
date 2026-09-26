@@ -29,14 +29,21 @@ class Settings(BaseSettings):
     # Access-token JWT (port of services/auth-service/app/core/config.py).
     secret_key: str = "change-me-in-production-0123456789abcdef"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24
+    # Blueprint 11.4: the access JWT is short-lived and is always paired with a
+    # rotating opaque refresh token; it must never be the only credential.
+    access_token_expire_minutes: int = 15
     token_blacklist_ttl: int = 3600
     role_cache_ttl: int = 300
+
+    # Refresh tokens (blueprint 11.4 / 13.2): opaque, stored hashed, rotated on
+    # every use with family-wide reuse detection.
+    refresh_token_ttl_days: int = 7
 
     # Auth cookie settings. `cookie_secure` must be True in production (HTTPS).
     cookie_name: str = "access_token"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
+    cookie_refresh_name: str = "refresh_token"
 
     # Seed the super-admin on first boot.
     seed_admin_email: str = "admin@phonova.io"
@@ -51,11 +58,44 @@ class Settings(BaseSettings):
     storage_s3_region: str = "us-east-1"
     storage_s3_access_key: str = ""
     storage_s3_secret_key: str = ""
+    storage_s3_server_side_encryption: str = "AES256"
+    storage_s3_kms_key_id: str = ""
+    storage_presign_max_ttl_seconds: int = 60 * 60 * 24 * 7
+    database_require_tls: bool = True
+    enforce_https: bool = True
+    tls_min_version: str = "TLSv1.3"
+    require_tls_1_3: bool = True
 
+    # Starlette matches the browser's ``Origin`` header as an exact string, and
+    # ``localhost`` resolves to IPv6 ``::1`` first on Windows/Chrome.  Every
+    # loopback spelling the dashboard can be opened on must be listed or the
+    # browser discards the response and ``fetch`` rejects with
+    # "TypeError: Failed to fetch" (which is indistinguishable from the API
+    # being down).  The bracketed form is what the browser actually sends.
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://[::1]:3000",
     ]
+
+    # VICIdial Non-Agent API (B3-1).  The API user must have User level >= 8.
+    # ``vicidial_url`` is the full ``non_agent_api.php`` endpoint.
+    vicidial_url: str = "http://localhost/vicidial/non_agent_api.php"
+    vicidial_user: str = ""
+    vicidial_pass: str = ""
+    vicidial_source: str = "talkflow"
+    vicidial_default_campaign_id: str = "TEST_CAMP"
+    vicidial_default_list_id: str = "1001"
+
+    # BACKEND-8a telephony edge.  Shared secret VICIdial must echo back in the
+    # ``X-TalkFlow-Telephony-Token`` header on every start-call / dispo-call
+    # webhook.  AMI credentials must be a restricted manager user (read-only
+    # events) - never the full watchroot default.
+    telephony_webhook_token: str = ""
+    asterisk_ami_host: str = "localhost"
+    asterisk_ami_port: int = 5038
+    asterisk_ami_user: str = ""
+    asterisk_ami_pass: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

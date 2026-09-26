@@ -18,7 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.context import UserContext
 from app.core.database import get_db
 from app.core.dependencies import require_permissions
-from app.core.permissions import PERM_LEAD_EDIT, PERM_LEAD_IMPORT, PERM_LEAD_VIEW
+from app.core.permissions import (
+    PERM_CAMPAIGN_START,
+    PERM_LEAD_EDIT,
+    PERM_LEAD_IMPORT,
+    PERM_LEAD_VIEW,
+)
 from app.modules.leads import service
 from app.modules.leads.schemas import (
     BulkAssignRequest,
@@ -31,6 +36,8 @@ from app.modules.leads.schemas import (
     LeadUpdate,
     MappingRequest,
     UpdateBatchCampaignRequest,
+    VicidialRunRequest,
+    VicidialRunResultDTO,
 )
 from app.packages.contracts.base import DataResponse, PagedResponse
 
@@ -39,6 +46,12 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 ViewGate = Annotated[UserContext, Depends(require_permissions([PERM_LEAD_VIEW]))]
 EditGate = Annotated[UserContext, Depends(require_permissions([PERM_LEAD_EDIT]))]
 ImportGate = Annotated[UserContext, Depends(require_permissions([PERM_LEAD_IMPORT]))]
+# Starting a dialer run authorizes outbound calling, so it takes the campaign
+# start permission rather than lead edit.
+DialGate = Annotated[
+    UserContext,
+    Depends(require_permissions([PERM_LEAD_EDIT, PERM_CAMPAIGN_START])),
+]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
@@ -48,7 +61,9 @@ async def list_lead_batches(actor: ViewGate, db: DbSession):
     return await service.list_batches(db, actor)
 
 
-@router.patch("/batches/{batch_id}/campaign", response_model=DataResponse[dict[str, Any]])
+@router.patch(
+    "/batches/{batch_id}/campaign", response_model=DataResponse[dict[str, Any]]
+)
 async def update_batch_campaign(
     batch_id: uuid.UUID,
     payload: UpdateBatchCampaignRequest,
@@ -61,12 +76,38 @@ async def update_batch_campaign(
 
 @router.delete("/batches/{batch_id}", response_model=DataResponse[dict[str, Any]])
 async def delete_lead_batch(
-    batch_id: str,
+    batch_id: uuid.UUID,
     actor: EditGate,
     db: DbSession,
 ):
     """Delete an imported lead batch file and all its associated lead records from DB."""
-    return await service.delete_batch(db, actor, batch_id)
+    return await service.delete_batch(db, actor, str(batch_id))
+
+
+@router.patch(
+    "/batches/{batch_id}/vicidial-run",
+    response_model=DataResponse[VicidialRunResultDTO],
+)
+async def set_batch_vicidial_run(
+    batch_id: uuid.UUID,
+    payload: VicidialRunRequest,
+    actor: DialGate,
+    db: DbSession,
+):
+    """Start or stop the VICIdial run for an imported lead list.
+
+    Starting pushes the list's leads into the dialer hopper and bumps the run
+    count; stopping records the interruption in TalkFlow (the non-agent API has
+    no list pause). Gated on ``campaign.start`` because it authorizes dialing.
+    """
+    return await service.set_vicidial_run(
+        db,
+        actor,
+        batch_id,
+        is_active=payload.is_active,
+        vicidial_list_id=payload.vicidial_list_id,
+        campaign_id=payload.campaign_id,
+    )
 
 
 # ---------------------------------------------------------------------------

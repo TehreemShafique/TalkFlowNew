@@ -111,5 +111,9 @@ class ServiceUnavailableError(TalkFlowError):
     """maps to HTTP 503"""
 
 
+class UpstreamError(TalkFlowError):
+    """maps to HTTP 502 - a dependency we call (VICIdial, S3) rejected the call."""
+
+
 class ValidationError(TalkFlowError):
     """maps to HTTP 422"""

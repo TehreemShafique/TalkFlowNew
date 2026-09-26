@@ -195,6 +195,20 @@ class SuppressionReason(StrEnum):
     INVALID = "invalid"
 
 
+class VicidialRunStatus(StrEnum):
+    """Execution state of a lead list inside the VICIdial dialer.
+
+    ``RUNNING`` means the list has been pushed into the dialer hopper and is
+    eligible for dialing; ``INTERRUPTED`` means an operator toggled the run off
+    (TalkFlow-side state only - the non-agent API has no pause function).
+    """
+
+    IDLE = "idle"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    INTERRUPTED = "interrupted"
+
+
 class ImportJobStatus(StrEnum):
     """Lifecycle of a lead CSV import job (section 12 ``LeadImportJob``)."""
 

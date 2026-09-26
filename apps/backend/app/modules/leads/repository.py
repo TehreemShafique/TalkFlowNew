@@ -61,6 +61,12 @@ async def list_leads(
         filters.append(Lead.campaign_id == query.campaign_id)
     if query.source:
         filters.append(Lead.source == query.source)
+    if query.import_job_id:
+        # The authoritative "these leads came from that file" link. Unlike
+        # ``source`` / ``source_batch_id`` it is always written by the commit
+        # step, so it does not depend on the CSV happening to have a matching
+        # column mapped.
+        filters.append(Lead.import_job_id == query.import_job_id)
     if query.search:
         like = f"%{query.search}%"
         filters.append(
@@ -219,19 +225,78 @@ async def update_job_campaign(
     await session.execute(stmt)
 
 
+async def list_batch_leads(
+    session: AsyncSession,
+    job: LeadImportJob,
+    *,
+    pending_only: bool = False,
+    limit: int | None = None,
+) -> list[Lead]:
+    """Every committed lead row that belongs to one imported batch.
+
+    Ordered by ``created_at`` so the hopper ingest order matches the CSV row
+    order the operator uploaded.
+
+    ``pending_only`` restricts the result to leads the dialer has never
+    accepted, i.e. rows with no ``vicidial_lead_id`` yet.  A run therefore
+    continues where the previous one stopped instead of re-pushing leads that
+    are already sitting in the hopper.
+    """
+    # Keyed on ``import_job_id``, which the commit step always sets. Matching on
+    # ``source`` / ``source_batch_id`` instead silently returned nothing for any
+    # CSV that did not happen to map those columns, so a run had no leads to
+    # push.
+    conditions = [Lead.import_job_id == job.id]
+    if pending_only:
+        conditions.append(Lead.vicidial_lead_id.is_(None))
+    stmt = (
+        select(Lead)
+        .where(and_(*conditions))
+        .order_by(Lead.created_at.asc(), Lead.id.asc())
+    )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def set_vicidial_lead_ids(
+    session: AsyncSession, pairs: list[tuple[str, uuid.UUID]]
+) -> None:
+    """Persist the dialer-assigned ``lead_id`` back onto each lead row.
+
+    ``pairs`` is ``(vicidial_lead_id, lead_id)``.  The CDR that comes back from
+    the dialer carries the VICIdial id, and this is what lets a call be
+    reconciled to the originating control-plane lead.
+    """
+    for vicidial_lead_id, lead_id in pairs:
+        await session.execute(
+            update(Lead)
+            .where(Lead.id == lead_id)
+            .values(vicidial_lead_id=vicidial_lead_id)
+        )
+
+
 async def delete_import_batch(session: AsyncSession, batch_id_str: str) -> bool:
-    job = None
+    """Delete one imported list: its job row and every lead it committed.
+
+    Leads are matched on ``import_job_id`` rather than the nullable
+    ``source`` / ``source_batch_id`` columns, which left the rows orphaned for
+    any CSV that did not map those columns.
+    """
     try:
         job_uuid = uuid.UUID(batch_id_str)
-        stmt = select(LeadImportJob).where(LeadImportJob.id == job_uuid)
-        job = (await session.execute(stmt)).scalar_one_or_none()
-    except Exception:
-        pass
+    except ValueError:
+        # Not a job id (e.g. a legacy browser-only batch id): there is no
+        # server-side job or lead set to remove.
+        return False
 
-    source_val = job.file_name if job else batch_id_str
-    await session.execute(
-        delete(Lead).where(or_(Lead.source == batch_id_str, Lead.source == source_val))
-    )
+    job = (
+        await session.execute(
+            select(LeadImportJob).where(LeadImportJob.id == job_uuid)
+        )
+    ).scalar_one_or_none()
+
+    await session.execute(delete(Lead).where(Lead.import_job_id == job_uuid))
 
     if job:
         await session.delete(job)

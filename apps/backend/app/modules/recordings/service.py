@@ -4,24 +4,29 @@ All mutations (purge) are written to the database synchronously with their
 outbox events and audit records so the worker's eventual consistency is the
 only failure domain (Rule R8).
 """
+
 from __future__ import annotations
 
+import urllib.parse
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import write_audit
 from app.core.config import settings
-from app.core.context import AccessScope, UserContext
+from app.core.context import UserContext
 from app.core.outbox import write_outbox
 from app.core.security import create_signed_grant
+from app.modules.recordings import repository as repo
 from app.modules.recordings.errors import (
+    RecordingDownloadUnauthorizedError,
     RecordingNotFoundError,
-    RecordingPurgeUnauthorizedError,
     RecordingPurgedError,
+    RecordingPurgeUnauthorizedError,
     RecordingSourceUnavailableError,
 )
 from app.modules.recordings.policies import (
@@ -30,18 +35,17 @@ from app.modules.recordings.policies import (
     resolve_scope_constraints,
 )
 from app.modules.recordings.schemas import (
+    PurgeRequest,
     QaAuditRequest,
     RecordingDTO,
     RecordingListQuery,
-    PurgeRequest,
 )
-from app.modules.recordings import repository as repo
 from app.packages.contracts.base import DataResponse, PagedMeta, PagedResponse
-from app.packages.contracts.enums import RecordingStatus
-from app.packages.db.models import CallRecording, audit_log_table
+from app.packages.contracts.enums import AuditResult, RecordingStatus
+from app.packages.db.models import CallRecording
 from app.packages.storage.provider import get_storage_provider
 
-_UTC = timezone.utc
+_UTC = UTC
 logger = structlog.get_logger("recordings.service")
 
 
@@ -49,13 +53,16 @@ logger = structlog.get_logger("recordings.service")
 # Private helpers
 # ---------------------------------------------------------------------------
 
+
 def _row_entity(raw: dict[str, Any]) -> CallRecording | None:
     """The ORM object embedded in every repository row dict (key 'CallRecording')."""
     ent = raw.get("CallRecording")
     return ent if isinstance(ent, CallRecording) else None
 
 
-def _format_row(raw: dict[str, Any], user: UserContext, audio_url: str | None) -> RecordingDTO:
+def _format_row(
+    raw: dict[str, Any], user: UserContext, audio_url: str | None
+) -> RecordingDTO:
     ent = _row_entity(raw)
     if ent is None:  # pragma: no cover - defensive; repository always embeds it
         raise RecordingNotFoundError("recording.not_found")
@@ -95,34 +102,6 @@ def _format_row(raw: dict[str, Any], user: UserContext, audio_url: str | None) -
     )
 
 
-async def _write_sync_audit(
-    session: AsyncSession,
-    *,
-    user: UserContext,
-    action: str,
-    recording_id: uuid.UUID,
-    result: str,
-    metadata: dict[str, Any] | None = None,
-) -> None:
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-    now = datetime.now(_UTC)
-    stmt = pg_insert(audit_log_table).values(
-        id=uuid.uuid4(),
-        ts=now,
-        actor_id=user.user_id,
-        actor_role=user.role,
-        action=action,
-        resource_type="recording",
-        resource_id=str(recording_id),
-        result=result,
-        ip=None,
-        user_agent=None,
-        metadata=metadata or {},
-        trace_id="",
-    )
-    await session.execute(stmt)
-
-
 async def _publish_event(
     session: AsyncSession,
     *,
@@ -138,9 +117,67 @@ async def _publish_event(
     )
 
 
+async def _audit(
+    session: AsyncSession,
+    *,
+    user: UserContext,
+    action: str,
+    recording_id: uuid.UUID | str,
+    result: AuditResult,
+    details: dict[str, Any] | None = None,
+) -> None:
+    """Every recording read/write of PHI goes through the central audit writer."""
+    await write_audit(
+        session,
+        actor_id=user.user_id,
+        actor_role=user.role,
+        action=action,
+        resource_type="recording",
+        resource_id=str(recording_id),
+        result=result,
+        details=details or {},
+    )
+
+
+def _grant_claims(
+    user: UserContext, recording: CallRecording, *, purpose: str
+) -> dict[str, Any]:
+    return {
+        "actor_id": str(user.user_id),
+        "actor_role": user.role,
+        "recording_id": str(recording.id),
+        "call_id": str(recording.call_id),
+        "purpose": purpose,
+    }
+
+
+async def _fetch_ready_recording(
+    session: AsyncSession, user: UserContext, recording_id: uuid.UUID
+) -> CallRecording:
+    row = await repo.fetch_row(session, recording_id, resolve_scope_constraints(user))
+    if row.status == RecordingStatus.PURGED.value:
+        raise RecordingPurgedError("recording.purged_or_expired")
+    if row.status != RecordingStatus.READY.value:
+        raise RecordingSourceUnavailableError("recording.source_unavailable")
+    if not row.storage_key:
+        raise RecordingSourceUnavailableError("recording.source_unavailable")
+    return row
+
+
+async def _recording_for_call(
+    session: AsyncSession, call_id: uuid.UUID
+) -> CallRecording:
+    stmt = select(CallRecording).where(CallRecording.call_id == call_id).limit(1)
+    row = (await session.execute(stmt)).scalar_one_or_none()
+    if row is None:
+        raise RecordingNotFoundError("recording.not_found")
+    return row
+
+
 # ---------------------------------------------------------------------------
 # Public service API
 # ---------------------------------------------------------------------------
+
 
 async def get_recording(
     session: AsyncSession, user: UserContext, recording_id: uuid.UUID
@@ -208,19 +245,44 @@ async def get_playback_url(
     user: UserContext,
     recording_id: uuid.UUID,
 ) -> str:
-    """Build a signed playback grant consumed by the /stream/{token} endpoint."""
-    row = await repo.fetch_row(session, recording_id, resolve_scope_constraints(user))
-    if row.status == RecordingStatus.PURGED.value:
-        raise RecordingPurgedError("recording.purged_or_expired")
-    if row.status != RecordingStatus.READY.value:
-        raise RecordingSourceUnavailableError("recording.source_unavailable")
-    if not row.storage_key:
-        raise RecordingSourceUnavailableError("recording.source_unavailable")
+    """Mint a 5-minute playback grant, then audit the issuance.
+
+    Authorization lives here (not in the route dependency) so a denied attempt
+    is still written to the central audit log.
+    """
+    if not RecordingPolicy.can_play(user):
+        await _audit(
+            session,
+            user=user,
+            action="recording.play",
+            recording_id=recording_id,
+            result=AuditResult.DENIED,
+            details={"reason": "missing recordings:read"},
+        )
+        await session.commit()
+        raise RecordingDownloadUnauthorizedError("recording.download_unauthorized")
+    row = await _fetch_ready_recording(session, user, recording_id)
     token, _jti = create_signed_grant(
-        row.storage_key, purpose="stream", ttl_seconds=settings.playback_url_ttl_seconds
+        row.storage_key,
+        purpose="stream",
+        ttl_seconds=settings.playback_url_ttl_seconds,
+        claims=_grant_claims(user, row, purpose="stream"),
     )
+    await _audit(
+        session,
+        user=user,
+        action="recording.played",
+        recording_id=row.id,
+        result=AuditResult.GRANTED,
+        details={
+            "call_id": str(row.call_id),
+            "purpose": "stream",
+            "ttl_seconds": settings.playback_url_ttl_seconds,
+        },
+    )
+    await session.commit()
     base = settings.storage_public_base_url.rstrip("/")
-    return f"{base}/api/v1/recordings/stream/{token}"
+    return f"{base}/api/v1/recordings/stream/{urllib.parse.quote(token, safe='')}"
 
 
 async def get_download_url(
@@ -228,19 +290,62 @@ async def get_download_url(
     user: UserContext,
     recording_id: uuid.UUID,
 ) -> str:
-    row = await repo.fetch_row(session, recording_id, resolve_scope_constraints(user))
-    if row.status == RecordingStatus.PURGED.value:
-        raise RecordingPurgedError("recording.purged_or_expired")
-    if row.status != RecordingStatus.READY.value:
-        raise RecordingSourceUnavailableError("recording.source_unavailable")
-    if not row.storage_key:
-        raise RecordingSourceUnavailableError("recording.source_unavailable")
+    """Mint a single-use 15-minute download grant, then audit the issuance."""
     if not RecordingPolicy.can_download(user):
-        raise RecordingPurgeUnauthorizedError("recording.download_unauthorized")
-    token, _jti = create_signed_grant(
-        row.storage_key, purpose="download", ttl_seconds=settings.download_token_ttl_minutes * 60
-    )
+        await _audit(
+            session,
+            user=user,
+            action="recording.download",
+            recording_id=recording_id,
+            result=AuditResult.DENIED,
+            details={"reason": "missing recordings:download"},
+        )
+        await session.commit()
+        raise RecordingDownloadUnauthorizedError("recording.download_unauthorized")
+    row = await _fetch_ready_recording(session, user, recording_id)
+    token, _jti = await _issue_download_grant(session, user, row)
     base = settings.storage_public_base_url.rstrip("/")
+    return f"{base}/api/v1/recordings/download/{urllib.parse.quote(token, safe='')}"
+
+
+async def _issue_download_grant(
+    session: AsyncSession, user: UserContext, row: CallRecording
+) -> tuple[str, str]:
+    ttl_seconds = settings.download_token_ttl_minutes * 60
+    token, jti = create_signed_grant(
+        row.storage_key,
+        purpose="download",
+        ttl_seconds=ttl_seconds,
+        claims=_grant_claims(user, row, purpose="download"),
+    )
+    await _audit(
+        session,
+        user=user,
+        action="recording.downloaded",
+        recording_id=row.id,
+        result=AuditResult.GRANTED,
+        details={
+            "call_id": str(row.call_id),
+            "purpose": "download",
+            "jti": jti,
+            "ttl_seconds": ttl_seconds,
+            "single_use": True,
+        },
+    )
+    await _publish_event(
+        session,
+        event_type="recording.download_requested",
+        recording_id=row.id,
+        payload={
+            "call_id": str(row.call_id),
+            "requested_by": str(user.user_id),
+            "storage_key": row.storage_key,
+        },
+    )
+    await session.commit()
+    return token, jti
+
+
 async def get_recording_by_call_id(
     session: AsyncSession, user: UserContext, call_id: uuid.UUID
 ) -> DataResponse[RecordingDTO]:
@@ -256,47 +361,42 @@ async def get_call_playback_url(
     session: AsyncSession, user: UserContext, call_id: uuid.UUID
 ) -> str:
     """Step 37: 5-minute presigned playback URL + audited action recording.played."""
-    stmt = select(CallRecording).where(CallRecording.call_id == call_id).limit(1)
-    res = await session.execute(stmt)
-    row = res.scalar_one_or_none()
-    recording_id = row.id if row else call_id
-
-    url = await get_playback_url(session, user, recording_id) if row else f"{settings.storage_public_base_url.rstrip('/')}/api/v1/recordings/stream/presigned_dummy"
-
-    await _write_sync_audit(
-        session,
-        user=user,
-        action="recording.played",
-        recording_id=recording_id,
-        result="success",
-        metadata={"call_id": str(call_id)},
-    )
-    await session.commit()
-    return url
+    if not RecordingPolicy.can_play(user):
+        await _audit(
+            session,
+            user=user,
+            action="recording.play",
+            recording_id=call_id,
+            result=AuditResult.DENIED,
+            details={"reason": "missing recordings:read", "call_id": str(call_id)},
+        )
+        await session.commit()
+        raise RecordingDownloadUnauthorizedError("recording.download_unauthorized")
+    row = await _recording_for_call(session, call_id)
+    return await get_playback_url(session, user, row.id)
 
 
 async def get_call_download_token(
     session: AsyncSession, user: UserContext, call_id: uuid.UUID
 ) -> str:
     """Step 37: Single-use download token + audited action recording.downloaded."""
-    stmt = select(CallRecording).where(CallRecording.call_id == call_id).limit(1)
-    res = await session.execute(stmt)
-    row = res.scalar_one_or_none()
-    recording_id = row.id if row else call_id
-
-    token, _jti = create_signed_grant(
-        str(call_id), purpose="download", ttl_seconds=300
-    )
-
-    await _write_sync_audit(
-        session,
-        user=user,
-        action="recording.downloaded",
-        recording_id=recording_id,
-        result="success",
-        metadata={"call_id": str(call_id)},
-    )
-    await session.commit()
+    if not RecordingPolicy.can_download(user):
+        await _audit(
+            session,
+            user=user,
+            action="recording.download",
+            recording_id=call_id,
+            result=AuditResult.DENIED,
+            details={"reason": "missing recordings:download", "call_id": str(call_id)},
+        )
+        await session.commit()
+        raise RecordingDownloadUnauthorizedError("recording.download_unauthorized")
+    row = await _recording_for_call(session, call_id)
+    if row.status == RecordingStatus.PURGED.value:
+        raise RecordingPurgedError("recording.purged_or_expired")
+    if row.status != RecordingStatus.READY.value or not row.storage_key:
+        raise RecordingSourceUnavailableError("recording.source_unavailable")
+    token, _jti = await _issue_download_grant(session, user, row)
     return token
 
 
@@ -315,10 +415,6 @@ async def purge_recording(
     row.status = RecordingStatus.PURGED.value
     row.audio_purged_at = datetime.now(_UTC)
     await repo.save(session, row)
-    await _write_sync_audit(
-        session, user=user, action="recording.purge", recording_id=recording_id, result="success",
-        metadata={"reason": request.reason},
-    )
     await _publish_event(
         session,
         event_type="recording.purged",
@@ -330,16 +426,30 @@ async def purge_recording(
             "deleted_object": {"key": row.storage_key},
         },
     )
+    await _audit(
+        session,
+        user=user,
+        action="recording.purge",
+        recording_id=recording_id,
+        result=AuditResult.SUCCESS,
+        details={"reason": request.reason, "call_id": str(row.call_id)},
+    )
     await session.commit()
-    return DataResponse(data=RecordingDTO(
-        id=row.id, call_id=row.call_id,
-        vicidial_recording_id=row.vicidial_recording_id,
-        lead_id=row.lead_id, campaign=None, disposition=None,
-        duration_sec=row.duration_seconds,
-        consent_captured=bool(row.consent_offset_ms),
-        status=RecordingStatus.PURGED, audio_url=None,
-        created_at=row.created_at,
-    ))
+    return DataResponse(
+        data=RecordingDTO(
+            id=row.id,
+            call_id=row.call_id,
+            vicidial_recording_id=row.vicidial_recording_id,
+            lead_id=row.lead_id,
+            campaign=None,
+            disposition=None,
+            duration_sec=row.duration_seconds,
+            consent_captured=bool(row.consent_offset_ms),
+            status=RecordingStatus.PURGED,
+            audio_url=None,
+            created_at=row.created_at,
+        )
+    )
 
 
 async def purge_expired_recordings(session: AsyncSession) -> int:
@@ -366,7 +476,7 @@ async def purge_expired_recordings(session: AsyncSession) -> int:
         if row.storage_key:
             try:
                 await provider.delete(row.storage_key)
-            except Exception:  # noqa: BLE001 - storage must never block purge
+            except Exception:
                 logger.exception(
                     "recording purge file delete failed", recording_id=str(row.id)
                 )
@@ -407,13 +517,13 @@ async def save_qa_audit(
     await repo.upsert_qa_review(
         session, recording=row, payload=payload, actor_id=user.user_id, now=now
     )
-    await _write_sync_audit(
+    await _audit(
         session,
         user=user,
         action="recording.qa_audit",
         recording_id=recording_id,
-        result="success",
-        metadata={
+        result=AuditResult.SUCCESS,
+        details={
             "score": payload.score,
             "status": payload.status or "Audited",
             "consent_verified": payload.consent_verified,

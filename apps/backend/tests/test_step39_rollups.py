@@ -23,20 +23,35 @@ from app.packages.db.models import (
     AGG_LABEL_UNSET,
     AggCampaignDaily,
     calls_table,
+    campaigns_table,
+    leads_table,
 )
 
 _DAY = date(2026, 9, 20)
 
 
-async def _seed_calls(session) -> None:
-    """Insert a deterministic single-day call set through the projection.
+async def _seed_calls(session, verifier_id: uuid.UUID) -> uuid.UUID:
+    """Insert a deterministic single-day call set and return the campaign id.
 
-    Only the columns exported by ``calls_table`` are written; the rest of the
-    real table takes its server defaults (NULL), which the rollup folds with
+    The lead, campaign and verifier parents are inserted/resolved first:
+    ``calls`` carries real foreign keys, so the rollup's ``LEFT JOIN leads`` and
+    its ``verifier_accepted`` counter only resolve once they exist.  Only the
+    columns exported by the shared projections are written; the rest of the real
+    tables take their server defaults (NULL), which the rollup folds with
     COALESCE into the ``_unassigned`` buckets.
     """
     campaign_id = uuid.uuid4()
     lead_id = uuid.uuid4()
+    await session.execute(
+        campaigns_table.insert().values(
+            id=campaign_id, name="Rollup Campaign", status="active"
+        )
+    )
+    await session.execute(
+        leads_table.insert().values(
+            id=lead_id, source="Rollup Fixture", phone_normalized="18505554586"
+        )
+    )
     started = datetime(2026, 9, 20, 12, 0, tzinfo=UTC)
     rows = [
         {
@@ -49,12 +64,13 @@ async def _seed_calls(session) -> None:
             "disqualification_reason": "opted_out" if i == 6 else None,
             "lead_id": lead_id,
             "campaign_id": campaign_id,
-            "verifier_id": uuid.uuid4() if i < 2 else None,
+            "verifier_id": verifier_id if i < 2 else None,
         }
         for i in range(8)
     ]
     await session.execute(calls_table.insert().values(rows))
     await session.commit()
+    return campaign_id
 
 
 async def _count_total(session) -> int:
@@ -64,7 +80,7 @@ async def _count_total(session) -> int:
 
 async def test_backfill_is_idempotent(seeded) -> None:
     async with seeded["factory"]() as db:
-        await _seed_calls(db)
+        await _seed_calls(db, seeded["viewer_id"])
         await rollup.backfill(db, _DAY)
         first = await rollup.snapshot(db, AggCampaignDaily.__tablename__)
         await rollup.backfill(db, _DAY)
@@ -75,7 +91,7 @@ async def test_backfill_is_idempotent(seeded) -> None:
 
 async def test_run_is_incremental_and_watermark_advances(seeded) -> None:
     async with seeded["factory"]() as db:
-        await _seed_calls(db)
+        await _seed_calls(db, seeded["viewer_id"])
         now = datetime(2026, 9, 20, 13, 0, tzinfo=UTC)
         advanced = await rollup.run(db, upto=now)
         assert set(advanced) == set(rollup._SQL)
@@ -91,11 +107,11 @@ async def test_rollup_is_tenant_unset_in_global_space(seeded) -> None:
     """Current calls carry tenant_id NULL; the global aggregates keep the
     ``_unassigned`` sentinel so unrestricted principals still see them."""
     async with seeded["factory"]() as db:
-        await _seed_calls(db)
+        campaign_id = await _seed_calls(db, seeded["viewer_id"])
         await rollup.run(db, upto=datetime(2026, 9, 20, 13, 0, tzinfo=UTC))
         row = await db.get(
             AggCampaignDaily,
-            (date(2026, 9, 20), AGG_LABEL_UNSET, uuid.UUID(int=0)),
+            (date(2026, 9, 20), AGG_LABEL_UNSET, campaign_id),
         )
         assert row is not None
         assert row.total_calls == 8
@@ -105,6 +121,6 @@ async def test_dashboard_counters_have_no_watermark_window(seeded) -> None:
     """agg_dashboard_counters is a pure replay of the current state, so it
     can never skew from the incremental window logic."""
     async with seeded["factory"]() as db:
-        await _seed_calls(db)
+        await _seed_calls(db, seeded["viewer_id"])
         assert ":watermark" not in rollup._SQL["agg_dashboard_counters"]
         assert "FROM calls" in rollup._SQL["agg_dashboard_counters"]

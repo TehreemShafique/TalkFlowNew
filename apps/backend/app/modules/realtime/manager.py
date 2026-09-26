@@ -13,8 +13,9 @@ import structlog
 from fastapi import WebSocket
 
 from app.core.context import UserContext
+from app.core.permissions import sees_full_phi
 from app.core.redis import get_redis
-from app.core.security import mask_phone
+from app.core.security import mask_sensitive_payload
 
 logger = structlog.get_logger("realtime.manager")
 
@@ -125,27 +126,12 @@ class ConnectionManager:
     def _mask_payload_pii(
         self, payload: dict[str, Any], user: UserContext | None
     ) -> dict[str, Any]:
-        """Mask PII if subscriber lacks full PII view permission."""
+        """Redact PII/PHI for subscribers without the privileged PHI roles."""
         if not user:
+            return mask_sensitive_payload(payload)
+        if sees_full_phi(user.role, user.permissions):
             return payload
-
-        has_full_pii = (
-            user.role == "MASTER_ADMIN"
-            or "lead.view_full" in user.permissions
-            or "pii.view_full" in user.permissions
-        )
-        if has_full_pii:
-            return payload
-
-        # Deep-copy or construct masked dictionary
-        masked = json.loads(json.dumps(payload))
-        caller = masked.get("caller")
-        if isinstance(caller, dict) and "number" in caller:
-            raw_phone = caller["number"]
-            caller["number"] = mask_phone(raw_phone) if raw_phone else None
-        if "phone" in masked and isinstance(masked["phone"], str):
-            masked["phone"] = mask_phone(masked["phone"])
-        return masked
+        return mask_sensitive_payload(payload)
 
     async def fanout_event(
         self, channel: str, event_type: str, raw_payload: dict[str, Any], seq: int

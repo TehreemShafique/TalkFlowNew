@@ -52,6 +52,7 @@ from app.packages.contracts.enums import (
     ScriptStatus,
     StorageProvider,
     UserStatus,
+    VicidialRunStatus,
 )
 from app.packages.db.base import BareBase, Base, utc_now, uuid7
 
@@ -271,6 +272,51 @@ class UserSession(Base):
         return f"<UserSession id={self.id} token_id={self.token_id!r}>"
 
 
+class RefreshToken(Base):
+    """One issued refresh token (blueprint 11.4 / 13.2).
+
+    The token itself is opaque and never stored: only its SHA-256 hash is
+    persisted.  ``family_id`` links every token descended from a single login so
+    reuse of an already-rotated token can revoke the whole lineage.
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid7,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    family_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    # The ``user_sessions.token_id`` (JWT jti) this family refreshes.  Re-minting
+    # the access token against the same jti keeps one ledger row per login
+    # instead of minting a new session on every refresh.
+    session_token_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    replaced_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("refresh_tokens.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    user_agent: Mapped[str | None] = mapped_column(String(256))
+    ip: Mapped[str | None] = mapped_column(String(64))
+
+    user: Mapped[User] = relationship("User")
+
+    __table_args__ = (Index("ix_refresh_tokens_family_id", "family_id"),)
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"<RefreshToken id={self.id} family_id={self.family_id}>"
+
+
 # ---------------------------------------------------------------------------
 # Scripts (conversational flow graphs & versioning). Owned by modules/scripts.
 # ---------------------------------------------------------------------------
@@ -333,6 +379,7 @@ class Script(Base):
         back_populates="script",
         cascade="all, delete-orphan",
         foreign_keys="ScriptVersion.script_id",
+        lazy="selectin",
     )
 
     __table_args__ = (
@@ -603,6 +650,10 @@ class Lead(Base):
     external_key: Mapped[str | None] = mapped_column(
         String(20), unique=True, index=True
     )
+    # BACKEND-8a: the VICIdial ``lead_id`` assigned when the lead is pushed via
+    # non_agent_api add_lead (see ``extract_added_lead_id``).  Kept on the lead
+    # so the dialer's CDR can be reconciled back to the control plane row.
+    vicidial_lead_id: Mapped[str | None] = mapped_column(String(64))
     first_name: Mapped[str | None] = mapped_column(String(120))
     last_name: Mapped[str | None] = mapped_column(String(120))
     phone_normalized: Mapped[str | None] = mapped_column(String(32), index=True)
@@ -717,6 +768,25 @@ class LeadImportJob(Base):
     campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL")
     )
+    # VICIdial run control. The dashboard toggles a list into the dialer's hopper
+    # and the run state lives here (not in the browser) so run counts survive a
+    # cache clear and every operator sees the same list state.
+    vicidial_list_id: Mapped[str | None] = mapped_column(String(64))
+    vicidial_run_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    # One of: idle | running | completed | interrupted
+    vicidial_status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=VicidialRunStatus.IDLE.value,
+        server_default=text("'idle'"),
+    )
+    is_active_for_vicidial: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    vicidial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    vicidial_stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -1218,6 +1288,7 @@ leads_table = Table(
     "leads",
     _shared,
     Column("id", Uuid(as_uuid=True), primary_key=True),
+    Column("vicidial_lead_id", String(64)),
     Column("first_name", String(120)),
     Column("last_name", String(120)),
     Column("phone_normalized", String(32), index=True),
@@ -1708,6 +1779,7 @@ class AggRollupWatermark(BareBase):
 # Phase 9: QA, Alerts, Integrations, Notifications ORM Models
 # ---------------------------------------------------------------------------
 
+
 class QAScorecard(BareBase):
     """Template for QA reviews (Step 49)."""
 
@@ -1736,7 +1808,9 @@ class QACriterion(BareBase):
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     scorecard_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("qa_scorecards.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True),
+        ForeignKey("qa_scorecards.id", ondelete="CASCADE"),
+        nullable=False,
     )
     category: Mapped[str] = mapped_column(String(60), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -1786,7 +1860,9 @@ class QAReviewScore(BareBase):
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     review_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("qa_reviews.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True),
+        ForeignKey("qa_reviews.id", ondelete="CASCADE"),
+        nullable=False,
     )
     criterion_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("qa_scorecard_criteria.id"), nullable=False
@@ -1829,7 +1905,9 @@ class IntegrationItem(BareBase):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     type: Mapped[str] = mapped_column(String(60), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="configured")
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="configured"
+    )
     config: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
@@ -1857,3 +1935,40 @@ class NotificationItem(BareBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )
+
+
+# ---------------------------------------------------------------------------
+# Reconciling the two MetaData objects
+#
+# The declarative mappings live on ``Base.metadata``; the read-only projections
+# above live on ``_shared``.  ``CallRecording`` declares
+# ``ForeignKey("retention_policies.id")`` and friends, and SQLAlchemy resolves a
+# string FK against the metadata of the owning table - so those targets must be
+# present in ``Base.metadata`` or the mapper raises NoReferencedTableError the
+# moment anything sorts the tables.
+#
+# That is why ``alembic check`` and ``revision --autogenerate`` used to abort
+# with "Foreign key associated with column 'call_recordings.retention_policy_id'
+# could not find table 'retention_policies'": env.py handed Alembic a bare
+# ``Base.metadata``.  With autogenerate broken, schema drift is invisible, which
+# is how ``retention_policies`` ended up deployed without the ``name`` /
+# ``audio_days`` columns its ORM mapping declares.  Callers that need a single
+# unified metadata must call this first.
+# ---------------------------------------------------------------------------
+
+
+def merge_shared_metadata(metadata: MetaData) -> None:
+    """Attach the ``_shared`` projections onto ``metadata``.
+
+    Where a table exists in both places the declarative mapping wins, because it
+    is the one the application queries through.  The single exception is
+    ``qa_reviews``: two shapes of that table are in flight - the projection the
+    recordings module owns (migration 7f3a9c2b4d80: score/status/checklist
+    columns, one row per call) and the newer ``QAReview`` ORM mapping here.  The
+    deployed schema is the recordings projection, so it takes precedence.
+    """
+    for shared_table in list(_shared.tables.values()):
+        if shared_table.name == "qa_reviews" and shared_table.name in metadata.tables:
+            metadata._remove_table(shared_table.name, shared_table.schema)
+        if shared_table.name not in metadata.tables:
+            metadata._add_table(shared_table.name, shared_table.schema, shared_table)

@@ -53,7 +53,7 @@ async def test_list_recordings_returns_camel_case_contract(client, seeded):
 async def test_list_phone_is_masked_without_pii_permission(client, seeded):
     resp = await client.get("/recordings", headers=seeded["viewer_headers"])
     assert resp.status_code == 200
-    assert resp.json()["data"][0]["phone"] == "(850) ***-4586"
+    assert resp.json()["data"][0]["phone"] == "***-***-4586"
 
 
 async def test_get_recording_details(client, seeded):

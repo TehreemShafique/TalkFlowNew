@@ -3,6 +3,7 @@
 These map 1:1 to `outbox_table.event_type`; the dispatcher worker translates
 them to Kafka topics with the same names.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

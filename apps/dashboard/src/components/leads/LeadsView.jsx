@@ -49,6 +49,10 @@ export default function LeadsView({ initialAction, onActionChange }) {
           onSelectBatch={state.handleSelectBatch}
           onAssignCampaign={state.handleAssignCampaign}
           onDeleteBatch={state.handleDeleteBatch}
+          onToggleVicidialRun={state.handleToggleVicidialRun}
+          vicidialBusyBatchId={state.vicidialBusyBatchId}
+          vicidialError={state.vicidialError}
+          batchError={state.batchError}
         />
       )}
 
@@ -118,17 +122,25 @@ export default function LeadsView({ initialAction, onActionChange }) {
           importStep={state.importStep}
           onSetImportStep={state.setImportStep}
           uploadedFileName={state.uploadedFileName}
-          customListName={state.customListName}
-          onCustomListNameChange={state.setCustomListName}
           onFileUpload={state.handleFileUpload}
           onStartImport={state.handleStartImport}
-          importProgress={state.importProgress}
-          onViewList={() => state.navigateToAction("all")}
+          onValidateMapping={state.handleValidateMapping}
+          onColumnMappingChange={state.handleColumnMappingChange}
+          onViewList={state.handleViewImportedList}
           onResetWizard={state.handleResetImportWizard}
           importError={state.importError}
+          importBusy={state.importBusy}
           detectedCount={state.detectedCount}
-          csvHeaders={state.csvHeaders}
-          sampleRow={state.sampleRow}
+          importColumns={state.importColumns}
+          columnMapping={state.columnMapping}
+          importValidation={state.importValidation}
+          importResult={state.importResult}
+          importTargetFields={state.importTargetFields}
+          importCustomField={state.importCustomField}
+          importSkipColumn={state.importSkipColumn}
+          activeCampaigns={state.activeCampaigns}
+          importCampaignId={state.importCampaignId}
+          onImportCampaignChange={state.setImportCampaignId}
         />
       )}
 

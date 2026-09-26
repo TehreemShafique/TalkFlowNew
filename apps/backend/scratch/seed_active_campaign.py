@@ -1,4 +1,5 @@
 import asyncio
+
 from sqlalchemy import select
 
 from app.core.database import async_session_factory
@@ -10,7 +11,9 @@ async def seed():
     async with async_session_factory() as db:
         # Check if an active campaign exists
         res = await db.execute(
-            select(Campaign).where(Campaign.status == CampaignStatus.ACTIVE.value).limit(1)
+            select(Campaign)
+            .where(Campaign.status == CampaignStatus.ACTIVE.value)
+            .limit(1)
         )
         campaign = res.scalar_one_or_none()
 

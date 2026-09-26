@@ -87,7 +87,10 @@ export function useCallsState(initialAction, onActionChange) {
   const fetchCalls = async () => {
     try {
       let allItems = [];
-      const res = await apiFetch("/calls?page_size=200&page=1");
+      // Query keys are the schema's camelCase aliases. FastAPI binds query
+      // params by alias only, so `page_size` is not rejected - it is silently
+      // dropped and the endpoint answers with the default 20-row page.
+      const res = await apiFetch("/calls?pageSize=200&page=1");
       if (res && res.ok) {
         const json = await res.json();
         allItems = json.items || json.data || [];
@@ -101,7 +104,7 @@ export function useCallsState(initialAction, onActionChange) {
         if (totalPages > 1) {
           for (let p = 2; p <= Math.min(totalPages, 10); p++) {
             try {
-              const resNext = await apiFetch(`/calls?page_size=200&page=${p}`);
+              const resNext = await apiFetch(`/calls?pageSize=200&page=${p}`);
               if (resNext && resNext.ok) {
                 const jsonNext = await resNext.json();
                 const nextItems = jsonNext.items || jsonNext.data || [];

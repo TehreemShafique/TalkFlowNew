@@ -45,19 +45,22 @@ async def write_outbox(
     seq_val: int | None = None
 
     try:
-        seq_res = await session.execute(
-            text(f"SELECT nextval('outbox_seq_{channel_clean}')")
-        )
-        seq_val = seq_res.scalar_one_or_none()
+        async with session.begin_nested():
+            seq_res = await session.execute(
+                text(f"SELECT nextval('outbox_seq_{channel_clean}')")
+            )
+            seq_val = seq_res.scalar_one_or_none()
     except Exception:  # noqa: BLE001 - fallback if the sequence is missing
         # Fallback if specific sequence is missing or sqlite test mode
         try:
-            seq_res = await session.execute(
-                text("SELECT COALESCE(MAX(seq), 0) + 1 FROM outbox")
-            )
-            seq_val = seq_res.scalar_one_or_none()
+            async with session.begin_nested():
+                seq_res = await session.execute(
+                    text("SELECT COALESCE(MAX(seq), 0) + 1 FROM outbox")
+                )
+                seq_val = seq_res.scalar_one_or_none()
         except Exception:  # noqa: BLE001 - degenerate fallback keeps the write alive
             seq_val = 1
+
 
     stmt = pg_insert(outbox_table).values(
         id=uuid.uuid4(),

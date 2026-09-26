@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from app.core.context import UserContext
 from app.modules.exports.policies import ExportPolicy, build_csv
 
@@ -51,7 +49,12 @@ def test_export_includes_pii_for_admin_user():
     admin_user = UserContext(
         user_id="usr_admin",
         tenant_id=None,
-        permissions={"export.create", "export.view", "export.download", "pii.view_full"},
+        permissions={
+            "export.create",
+            "export.view",
+            "export.download",
+            "pii.view_full",
+        },
         role="SUPER_ADMIN",
     )
 

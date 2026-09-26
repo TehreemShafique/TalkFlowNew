@@ -1,6 +1,148 @@
 {
   "components": {
     "schemas": {
+      "AlertDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedat"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "resourceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resourceid"
+          },
+          "resourceType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resourcetype"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "severity",
+          "title",
+          "message",
+          "status",
+          "createdAt"
+        ],
+        "title": "AlertDTO",
+        "type": "object"
+      },
+      "AnalyticsSummaryDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "answerRate": {
+            "default": "0.0%",
+            "title": "Answerrate",
+            "type": "string"
+          },
+          "answeredCalls": {
+            "default": 0,
+            "title": "Answeredcalls",
+            "type": "integer"
+          },
+          "avgDurationSec": {
+            "default": 0.0,
+            "title": "Avgdurationsec",
+            "type": "number"
+          },
+          "contactedCalls": {
+            "default": 0,
+            "title": "Contactedcalls",
+            "type": "integer"
+          },
+          "disqualifiedCalls": {
+            "default": 0,
+            "title": "Disqualifiedcalls",
+            "type": "integer"
+          },
+          "qualRate": {
+            "default": "0.0%",
+            "title": "Qualrate",
+            "type": "string"
+          },
+          "qualifiedCalls": {
+            "default": 0,
+            "title": "Qualifiedcalls",
+            "type": "integer"
+          },
+          "totalCalls": {
+            "default": 0,
+            "title": "Totalcalls",
+            "type": "integer"
+          },
+          "transferRate": {
+            "default": "0.0%",
+            "title": "Transferrate",
+            "type": "string"
+          },
+          "transferredCalls": {
+            "default": 0,
+            "title": "Transferredcalls",
+            "type": "integer"
+          },
+          "verifierAccepted": {
+            "default": 0,
+            "title": "Verifieraccepted",
+            "type": "integer"
+          }
+        },
+        "title": "AnalyticsSummaryDTO",
+        "type": "object"
+      },
       "ApproveUserRequest": {
         "additionalProperties": false,
         "properties": {
@@ -46,7 +188,7 @@
         "title": "Body_upload_import_api_v1_leads_import_post",
         "type": "object"
       },
-      "BotDailyDTO": {
+      "BotAggDTO": {
         "additionalProperties": false,
         "properties": {
           "agentAlias": {
@@ -54,34 +196,19 @@
             "type": "string"
           },
           "answered": {
-            "default": 0,
             "title": "Answered",
             "type": "integer"
           },
           "avgDuration": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avgduration"
+            "title": "Avgduration",
+            "type": "number"
           },
-          "avgTalkTimeSeconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avgtalktimeseconds"
+          "botTurnLatency": {
+            "default": "1.8s",
+            "title": "Botturnlatency",
+            "type": "string"
           },
           "contacted": {
-            "default": 0,
             "title": "Contacted",
             "type": "integer"
           },
@@ -90,27 +217,50 @@
             "title": "Date",
             "type": "string"
           },
+          "disqualified": {
+            "title": "Disqualified",
+            "type": "integer"
+          },
+          "intentAccuracy": {
+            "default": "98.6%",
+            "title": "Intentaccuracy",
+            "type": "string"
+          },
           "qualified": {
-            "default": 0,
             "title": "Qualified",
             "type": "integer"
           },
+          "sttWer": {
+            "default": "1.2%",
+            "title": "Sttwer",
+            "type": "string"
+          },
           "totalCalls": {
-            "default": 0,
             "title": "Totalcalls",
             "type": "integer"
           },
           "transferred": {
-            "default": 0,
             "title": "Transferred",
             "type": "integer"
+          },
+          "vadInterruptionRate": {
+            "default": "2.1%",
+            "title": "Vadinterruptionrate",
+            "type": "string"
           }
         },
         "required": [
           "date",
-          "agentAlias"
+          "agentAlias",
+          "totalCalls",
+          "answered",
+          "contacted",
+          "qualified",
+          "transferred",
+          "disqualified",
+          "avgDuration"
         ],
-        "title": "BotDailyDTO",
+        "title": "BotAggDTO",
         "type": "object"
       },
       "BulkAssignRequest": {
@@ -588,6 +738,93 @@
         "title": "CallerInfoDTO",
         "type": "object"
       },
+      "CampaignAggDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "answerRate": {
+            "title": "Answerrate",
+            "type": "string"
+          },
+          "answered": {
+            "title": "Answered",
+            "type": "integer"
+          },
+          "avgDuration": {
+            "title": "Avgduration",
+            "type": "number"
+          },
+          "campaignId": {
+            "format": "uuid",
+            "title": "Campaignid",
+            "type": "string"
+          },
+          "campaignName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignname"
+          },
+          "contacted": {
+            "title": "Contacted",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "disqualified": {
+            "title": "Disqualified",
+            "type": "integer"
+          },
+          "qualRate": {
+            "title": "Qualrate",
+            "type": "string"
+          },
+          "qualified": {
+            "title": "Qualified",
+            "type": "integer"
+          },
+          "totalCalls": {
+            "title": "Totalcalls",
+            "type": "integer"
+          },
+          "transferRate": {
+            "title": "Transferrate",
+            "type": "string"
+          },
+          "transferred": {
+            "title": "Transferred",
+            "type": "integer"
+          },
+          "verifierAccepted": {
+            "title": "Verifieraccepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "campaignId",
+          "totalCalls",
+          "answered",
+          "contacted",
+          "qualified",
+          "transferred",
+          "verifierAccepted",
+          "disqualified",
+          "answerRate",
+          "qualRate",
+          "transferRate",
+          "avgDuration"
+        ],
+        "title": "CampaignAggDTO",
+        "type": "object"
+      },
       "CampaignCreate": {
         "additionalProperties": false,
         "description": "POST /campaigns payload (new campaigns always open in ``draft``).",
@@ -908,74 +1145,6 @@
         "title": "CampaignDTO",
         "type": "object"
       },
-      "CampaignDailyDTO": {
-        "additionalProperties": false,
-        "description": "One agg_campaign_daily row.",
-        "properties": {
-          "answered": {
-            "default": 0,
-            "title": "Answered",
-            "type": "integer"
-          },
-          "avgDuration": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avgduration"
-          },
-          "campaignId": {
-            "format": "uuid",
-            "title": "Campaignid",
-            "type": "string"
-          },
-          "contacted": {
-            "default": 0,
-            "title": "Contacted",
-            "type": "integer"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "disqualified": {
-            "default": 0,
-            "title": "Disqualified",
-            "type": "integer"
-          },
-          "qualified": {
-            "default": 0,
-            "title": "Qualified",
-            "type": "integer"
-          },
-          "totalCalls": {
-            "default": 0,
-            "title": "Totalcalls",
-            "type": "integer"
-          },
-          "transferred": {
-            "default": 0,
-            "title": "Transferred",
-            "type": "integer"
-          },
-          "verifierAccepted": {
-            "default": 0,
-            "title": "Verifieraccepted",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "date",
-          "campaignId"
-        ],
-        "title": "CampaignDailyDTO",
-        "type": "object"
-      },
       "CampaignStartResponse": {
         "additionalProperties": false,
         "description": "POST /campaigns/{id}/start result (problems empty on success).",
@@ -1043,59 +1212,6 @@
         ],
         "title": "CampaignStatus",
         "type": "string"
-      },
-      "CampaignTotalsDTO": {
-        "additionalProperties": false,
-        "properties": {
-          "answered": {
-            "default": 0,
-            "title": "Answered",
-            "type": "integer"
-          },
-          "avgDuration": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avgduration"
-          },
-          "contacted": {
-            "default": 0,
-            "title": "Contacted",
-            "type": "integer"
-          },
-          "disqualified": {
-            "default": 0,
-            "title": "Disqualified",
-            "type": "integer"
-          },
-          "qualified": {
-            "default": 0,
-            "title": "Qualified",
-            "type": "integer"
-          },
-          "totalCalls": {
-            "default": 0,
-            "title": "Totalcalls",
-            "type": "integer"
-          },
-          "transferred": {
-            "default": 0,
-            "title": "Transferred",
-            "type": "integer"
-          },
-          "verifierAccepted": {
-            "default": 0,
-            "title": "Verifieraccepted",
-            "type": "integer"
-          }
-        },
-        "title": "CampaignTotalsDTO",
-        "type": "object"
       },
       "CampaignUpdate": {
         "additionalProperties": false,
@@ -1308,65 +1424,50 @@
         "title": "ColumnPreview",
         "type": "object"
       },
-      "ComplianceDailyDTO": {
+      "ComplianceAggDTO": {
         "additionalProperties": false,
         "properties": {
-          "answered": {
-            "default": 0,
-            "title": "Answered",
-            "type": "integer"
-          },
           "campaignId": {
             "format": "uuid",
             "title": "Campaignid",
             "type": "string"
           },
-          "contacted": {
-            "default": 0,
-            "title": "Contacted",
-            "type": "integer"
+          "complianceRate": {
+            "title": "Compliancerate",
+            "type": "string"
           },
           "date": {
             "format": "date",
             "title": "Date",
             "type": "string"
           },
-          "disqualified": {
-            "default": 0,
-            "title": "Disqualified",
+          "disclaimersRead": {
+            "title": "Disclaimersread",
             "type": "integer"
           },
-          "optedOut": {
-            "default": 0,
-            "title": "Optedout",
+          "optOuts": {
+            "title": "Optouts",
             "type": "integer"
-          },
-          "qaAutofail": {
-            "default": 0,
-            "title": "Qaautofail",
-            "type": "integer"
-          },
-          "qualified": {
-            "default": 0,
-            "title": "Qualified",
-            "type": "integer"
-          },
-          "reason": {
-            "title": "Reason",
-            "type": "string"
           },
           "totalCalls": {
-            "default": 0,
             "title": "Totalcalls",
+            "type": "integer"
+          },
+          "violations": {
+            "title": "Violations",
             "type": "integer"
           }
         },
         "required": [
           "date",
           "campaignId",
-          "reason"
+          "totalCalls",
+          "disclaimersRead",
+          "optOuts",
+          "violations",
+          "complianceRate"
         ],
-        "title": "ComplianceDailyDTO",
+        "title": "ComplianceAggDTO",
         "type": "object"
       },
       "ComplianceProfileDTO": {
@@ -1576,24 +1677,40 @@
         "title": "ConsentEvidenceDTO",
         "type": "object"
       },
-      "DQBreakdownDTO": {
+      "CriterionScoreItem": {
         "additionalProperties": false,
-        "description": "One disqualification bucket across the range (blueprint §14.4).",
         "properties": {
-          "count": {
-            "default": 0,
-            "title": "Count",
-            "type": "integer"
-          },
-          "reason": {
-            "title": "Reason",
+          "criterionId": {
+            "format": "uuid",
+            "title": "Criterionid",
             "type": "string"
+          },
+          "scoreValue": {
+            "description": "Score value 0 to 100",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Scorevalue",
+            "type": "number"
           }
         },
         "required": [
-          "reason"
+          "criterionId",
+          "scoreValue"
         ],
-        "title": "DQBreakdownDTO",
+        "title": "CriterionScoreItem",
+        "type": "object"
+      },
+      "DataResponse_AnalyticsSummaryDTO_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnalyticsSummaryDTO"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[AnalyticsSummaryDTO]",
         "type": "object"
       },
       "DataResponse_CallDTO_": {
@@ -1726,6 +1843,32 @@
         "title": "DataResponse[PerformanceDTO]",
         "type": "object"
       },
+      "DataResponse_QAReviewDTO_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QAReviewDTO"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[QAReviewDTO]",
+        "type": "object"
+      },
+      "DataResponse_QAScorecardDTO_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QAScorecardDTO"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[QAScorecardDTO]",
+        "type": "object"
+      },
       "DataResponse_RecordingDTO_": {
         "additionalProperties": false,
         "properties": {
@@ -1802,19 +1945,6 @@
           "data"
         ],
         "title": "DataResponse[ScriptVersionDTO]",
-        "type": "object"
-      },
-      "DataResponse_SummaryDTO_": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/SummaryDTO"
-          }
-        },
-        "required": [
-          "data"
-        ],
-        "title": "DataResponse[SummaryDTO]",
         "type": "object"
       },
       "DataResponse_SuppressionCheckDTO_": {
@@ -1895,6 +2025,19 @@
         "title": "DataResponse[VerifierAcceptContextDTO]",
         "type": "object"
       },
+      "DataResponse_VicidialRunResultDTO_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VicidialRunResultDTO"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[VicidialRunResultDTO]",
+        "type": "object"
+      },
       "DataResponse_dict_str__Any__": {
         "additionalProperties": false,
         "properties": {
@@ -1927,12 +2070,12 @@
         "title": "DataResponse[dict[str, str]]",
         "type": "object"
       },
-      "DataResponse_list_BotDailyDTO__": {
+      "DataResponse_list_AlertDTO__": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/BotDailyDTO"
+              "$ref": "#/components/schemas/AlertDTO"
             },
             "title": "Data",
             "type": "array"
@@ -1941,15 +2084,15 @@
         "required": [
           "data"
         ],
-        "title": "DataResponse[list[BotDailyDTO]]",
+        "title": "DataResponse[list[AlertDTO]]",
         "type": "object"
       },
-      "DataResponse_list_CampaignDailyDTO__": {
+      "DataResponse_list_BotAggDTO__": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/CampaignDailyDTO"
+              "$ref": "#/components/schemas/BotAggDTO"
             },
             "title": "Data",
             "type": "array"
@@ -1958,15 +2101,15 @@
         "required": [
           "data"
         ],
-        "title": "DataResponse[list[CampaignDailyDTO]]",
+        "title": "DataResponse[list[BotAggDTO]]",
         "type": "object"
       },
-      "DataResponse_list_ComplianceDailyDTO__": {
+      "DataResponse_list_CampaignAggDTO__": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/ComplianceDailyDTO"
+              "$ref": "#/components/schemas/CampaignAggDTO"
             },
             "title": "Data",
             "type": "array"
@@ -1975,15 +2118,15 @@
         "required": [
           "data"
         ],
-        "title": "DataResponse[list[ComplianceDailyDTO]]",
+        "title": "DataResponse[list[CampaignAggDTO]]",
         "type": "object"
       },
-      "DataResponse_list_LatencyRowDTO__": {
+      "DataResponse_list_ComplianceAggDTO__": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/LatencyRowDTO"
+              "$ref": "#/components/schemas/ComplianceAggDTO"
             },
             "title": "Data",
             "type": "array"
@@ -1992,7 +2135,41 @@
         "required": [
           "data"
         ],
-        "title": "DataResponse[list[LatencyRowDTO]]",
+        "title": "DataResponse[list[ComplianceAggDTO]]",
+        "type": "object"
+      },
+      "DataResponse_list_IntegrationDTO__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationDTO"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[list[IntegrationDTO]]",
+        "type": "object"
+      },
+      "DataResponse_list_LeadBatchDTO__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/LeadBatchDTO"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[list[LeadBatchDTO]]",
         "type": "object"
       },
       "DataResponse_list_LiveCallDTO__": {
@@ -2010,6 +2187,57 @@
           "data"
         ],
         "title": "DataResponse[list[LiveCallDTO]]",
+        "type": "object"
+      },
+      "DataResponse_list_NotificationDTO__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationDTO"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[list[NotificationDTO]]",
+        "type": "object"
+      },
+      "DataResponse_list_PerformanceAggDTO__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceAggDTO"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[list[PerformanceAggDTO]]",
+        "type": "object"
+      },
+      "DataResponse_list_QASampleCallDTO__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/QASampleCallDTO"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[list[QASampleCallDTO]]",
         "type": "object"
       },
       "DataResponse_list_RolePublic__": {
@@ -2046,12 +2274,12 @@
         "title": "DataResponse[list[ScriptPathNodeDTO]]",
         "type": "object"
       },
-      "DataResponse_list_ScriptVersionDailyDTO__": {
+      "DataResponse_list_ScriptVersionAggDTO__": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/ScriptVersionDailyDTO"
+              "$ref": "#/components/schemas/ScriptVersionAggDTO"
             },
             "title": "Data",
             "type": "array"
@@ -2060,7 +2288,7 @@
         "required": [
           "data"
         ],
-        "title": "DataResponse[list[ScriptVersionDailyDTO]]",
+        "title": "DataResponse[list[ScriptVersionAggDTO]]",
         "type": "object"
       },
       "DataResponse_list_ScriptVersionSummaryDTO__": {
@@ -2080,12 +2308,12 @@
         "title": "DataResponse[list[ScriptVersionSummaryDTO]]",
         "type": "object"
       },
-      "DataResponse_list_SourceDailyDTO__": {
+      "DataResponse_list_SourceAggDTO__": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/SourceDailyDTO"
+              "$ref": "#/components/schemas/SourceAggDTO"
             },
             "title": "Data",
             "type": "array"
@@ -2094,7 +2322,7 @@
         "required": [
           "data"
         ],
-        "title": "DataResponse[list[SourceDailyDTO]]",
+        "title": "DataResponse[list[SourceAggDTO]]",
         "type": "object"
       },
       "DataResponse_list_TimelineEventDTO__": {
@@ -2180,6 +2408,129 @@
           "data"
         ],
         "title": "DataResponse[list[str]]",
+        "type": "object"
+      },
+      "DispoCallPayload": {
+        "additionalProperties": false,
+        "description": "``POST /telephony/vicidial/dispo-call`` body.\n\n``outcome`` carries the TalkFlow disposition (e.g. ``qualified``); the\nmapped VICIdial status is derived locally via\n:func:`app.packages.vicidial.mapper.map_talkflow_to_vicidial_status`.",
+        "properties": {
+          "callId": {
+            "format": "uuid",
+            "title": "Callid",
+            "type": "string"
+          },
+          "campaignId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignid"
+          },
+          "channelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channelid"
+          },
+          "durationSeconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationseconds"
+          },
+          "eventTs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eventts"
+          },
+          "leadId": {
+            "format": "uuid",
+            "title": "Leadid",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "scriptVersionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scriptversionid"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "vicidialCallId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidialcallid"
+          },
+          "vicidialLeadId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidialleadid"
+          }
+        },
+        "required": [
+          "leadId",
+          "callId"
+        ],
+        "title": "DispoCallPayload",
         "type": "object"
       },
       "DispositionUpdate": {
@@ -2442,6 +2793,74 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthCardDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "title": "Checkedat",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "checkedAt"
+        ],
+        "title": "HealthCardDTO",
+        "type": "object"
+      },
+      "HealthCheckResponseDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/HealthCardDTO"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "cards",
+          "timestamp"
+        ],
+        "title": "HealthCheckResponseDTO",
+        "type": "object"
+      },
       "ImportJobDTO": {
         "additionalProperties": false,
         "description": "Wire model of one import job (dashboard ``LeadImportJob``).",
@@ -2621,62 +3040,172 @@
         "title": "ImportUploadResponse",
         "type": "object"
       },
-      "LatencyRowDTO": {
+      "IntegrationDTO": {
         "additionalProperties": false,
         "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
             "type": "string"
           },
-          "p50Ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "P50Ms"
-          },
-          "p95Ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "P95Ms"
-          },
-          "p99Ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "P99Ms"
-          },
-          "provider": {
-            "title": "Provider",
+          "name": {
+            "title": "Name",
             "type": "string"
           },
-          "samples": {
-            "default": 0,
-            "title": "Samples",
-            "type": "integer"
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
           }
         },
         "required": [
-          "date",
-          "provider"
+          "id",
+          "name",
+          "type",
+          "status",
+          "updatedAt"
         ],
-        "title": "LatencyRowDTO",
+        "title": "IntegrationDTO",
+        "type": "object"
+      },
+      "LeadBatchDTO": {
+        "additionalProperties": false,
+        "description": "Wire model for one imported CSV lead file batch.",
+        "properties": {
+          "campaignId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignid"
+          },
+          "campaignName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignname"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "fileName": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "importedRows": {
+            "default": 0,
+            "title": "Importedrows",
+            "type": "integer"
+          },
+          "isActiveForVicidial": {
+            "default": false,
+            "title": "Isactiveforvicidial",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ImportJobStatus",
+            "default": "completed"
+          },
+          "totalRows": {
+            "default": 0,
+            "title": "Totalrows",
+            "type": "integer"
+          },
+          "vicidialListId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidiallistid"
+          },
+          "vicidialRunCount": {
+            "default": 0,
+            "title": "Vicidialruncount",
+            "type": "integer"
+          },
+          "vicidialStartedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidialstartedat"
+          },
+          "vicidialStatus": {
+            "$ref": "#/components/schemas/VicidialRunStatus",
+            "default": "idle"
+          },
+          "vicidialStoppedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidialstoppedat"
+          }
+        },
+        "required": [
+          "id",
+          "fileName",
+          "createdAt"
+        ],
+        "title": "LeadBatchDTO",
         "type": "object"
       },
       "LeadCreate": {
@@ -3471,6 +4000,47 @@
         "title": "MessageResponse",
         "type": "object"
       },
+      "NotificationDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "message",
+          "type",
+          "read",
+          "createdAt"
+        ],
+        "title": "NotificationDTO",
+        "type": "object"
+      },
       "PagedMeta": {
         "additionalProperties": false,
         "description": "Pagination metadata returned with every collection.",
@@ -3776,6 +4346,47 @@
         "title": "PagedResponse[dict[str, Any]]",
         "type": "object"
       },
+      "PerformanceAggDTO": {
+        "additionalProperties": false,
+        "description": "Latency telemetry for one day x LLM provider (see docs/metrics.md).",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "p50TurnMs": {
+            "title": "P50Turnms",
+            "type": "number"
+          },
+          "p95TurnMs": {
+            "title": "P95Turnms",
+            "type": "number"
+          },
+          "p99TurnMs": {
+            "title": "P99Turnms",
+            "type": "number"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "provider",
+          "samples",
+          "p50TurnMs",
+          "p95TurnMs",
+          "p99TurnMs"
+        ],
+        "title": "PerformanceAggDTO",
+        "type": "object"
+      },
       "PerformanceDTO": {
         "additionalProperties": false,
         "description": "Per-call latency snapshot (section 26.7).",
@@ -3985,6 +4596,311 @@
           }
         },
         "title": "PurgeRequest",
+        "type": "object"
+      },
+      "QACriterionDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "autoFail": {
+            "title": "Autofail",
+            "type": "boolean"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "displayOrder": {
+            "title": "Displayorder",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "scorecardId": {
+            "format": "uuid",
+            "title": "Scorecardid",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "scorecardId",
+          "category",
+          "title",
+          "weight",
+          "autoFail",
+          "displayOrder"
+        ],
+        "title": "QACriterionDTO",
+        "type": "object"
+      },
+      "QAReviewCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "callId": {
+            "format": "uuid",
+            "title": "Callid",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "recordingId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordingid"
+          },
+          "scorecardId": {
+            "format": "uuid",
+            "title": "Scorecardid",
+            "type": "string"
+          },
+          "scores": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionScoreItem"
+            },
+            "minItems": 1,
+            "title": "Scores",
+            "type": "array"
+          }
+        },
+        "required": [
+          "callId",
+          "scorecardId",
+          "scores"
+        ],
+        "title": "QAReviewCreateRequest",
+        "type": "object"
+      },
+      "QAReviewDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "autoFailed": {
+            "title": "Autofailed",
+            "type": "boolean"
+          },
+          "callId": {
+            "format": "uuid",
+            "title": "Callid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "recordingId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordingid"
+          },
+          "reviewerId": {
+            "format": "uuid",
+            "title": "Reviewerid",
+            "type": "string"
+          },
+          "scorecardId": {
+            "format": "uuid",
+            "title": "Scorecardid",
+            "type": "string"
+          },
+          "totalScore": {
+            "title": "Totalscore",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "callId",
+          "scorecardId",
+          "reviewerId",
+          "totalScore",
+          "passed",
+          "autoFailed",
+          "createdAt"
+        ],
+        "title": "QAReviewDTO",
+        "type": "object"
+      },
+      "QASampleCallDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "callId": {
+            "format": "uuid",
+            "title": "Callid",
+            "type": "string"
+          },
+          "campaignId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignid"
+          },
+          "durationSeconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationseconds"
+          },
+          "qaFlags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qaflags"
+          },
+          "recordingStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordingstatus"
+          },
+          "riskScore": {
+            "title": "Riskscore",
+            "type": "number"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "title": "Startedat",
+            "type": "string"
+          },
+          "transferStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transferstatus"
+          }
+        },
+        "required": [
+          "callId",
+          "startedAt",
+          "riskScore"
+        ],
+        "title": "QASampleCallDTO",
+        "type": "object"
+      },
+      "QAScorecardDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/QACriterionDTO"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "isActive": {
+            "title": "Isactive",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "isActive",
+          "createdAt"
+        ],
+        "title": "QAScorecardDTO",
         "type": "object"
       },
       "QaAuditRequest": {
@@ -4201,33 +5117,6 @@
           "field"
         ],
         "title": "QualificationFieldDTO",
-        "type": "object"
-      },
-      "RatesDTO": {
-        "additionalProperties": false,
-        "properties": {
-          "contactRate": {
-            "default": 0.0,
-            "title": "Contactrate",
-            "type": "number"
-          },
-          "qualificationRate": {
-            "default": 0.0,
-            "title": "Qualificationrate",
-            "type": "number"
-          },
-          "transferSuccess": {
-            "default": 0.0,
-            "title": "Transfersuccess",
-            "type": "number"
-          },
-          "verifierCloseRate": {
-            "default": 0.0,
-            "title": "Verifiercloserate",
-            "type": "number"
-          }
-        },
-        "title": "RatesDTO",
         "type": "object"
       },
       "RecordingDTO": {
@@ -5553,6 +6442,89 @@
         "title": "ScriptVersionActivate",
         "type": "object"
       },
+      "ScriptVersionAggDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "integer"
+          },
+          "avgDuration": {
+            "title": "Avgduration",
+            "type": "number"
+          },
+          "contacted": {
+            "title": "Contacted",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "disqualified": {
+            "title": "Disqualified",
+            "type": "integer"
+          },
+          "qualRate": {
+            "title": "Qualrate",
+            "type": "string"
+          },
+          "qualified": {
+            "title": "Qualified",
+            "type": "integer"
+          },
+          "scriptName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scriptname"
+          },
+          "scriptVersionId": {
+            "format": "uuid",
+            "title": "Scriptversionid",
+            "type": "string"
+          },
+          "totalCalls": {
+            "title": "Totalcalls",
+            "type": "integer"
+          },
+          "transferred": {
+            "title": "Transferred",
+            "type": "integer"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "date",
+          "scriptVersionId",
+          "totalCalls",
+          "answered",
+          "contacted",
+          "qualified",
+          "transferred",
+          "disqualified",
+          "qualRate",
+          "avgDuration"
+        ],
+        "title": "ScriptVersionAggDTO",
+        "type": "object"
+      },
       "ScriptVersionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -5828,68 +6800,6 @@
         "title": "ScriptVersionDTO",
         "type": "object"
       },
-      "ScriptVersionDailyDTO": {
-        "additionalProperties": false,
-        "properties": {
-          "answered": {
-            "default": 0,
-            "title": "Answered",
-            "type": "integer"
-          },
-          "avgDuration": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avgduration"
-          },
-          "contacted": {
-            "default": 0,
-            "title": "Contacted",
-            "type": "integer"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "disqualified": {
-            "default": 0,
-            "title": "Disqualified",
-            "type": "integer"
-          },
-          "qualified": {
-            "default": 0,
-            "title": "Qualified",
-            "type": "integer"
-          },
-          "scriptVersionId": {
-            "format": "uuid",
-            "title": "Scriptversionid",
-            "type": "string"
-          },
-          "totalCalls": {
-            "default": 0,
-            "title": "Totalcalls",
-            "type": "integer"
-          },
-          "transferred": {
-            "default": 0,
-            "title": "Transferred",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "date",
-          "scriptVersionId"
-        ],
-        "title": "ScriptVersionDailyDTO",
-        "type": "object"
-      },
       "ScriptVersionReject": {
         "additionalProperties": false,
         "properties": {
@@ -6104,6 +7014,84 @@
         "title": "ScriptVersionUpdate",
         "type": "object"
       },
+      "SearchItemDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title"
+        ],
+        "title": "SearchItemDTO",
+        "type": "object"
+      },
+      "SearchResultResponseDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchItemDTO"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "total",
+          "items"
+        ],
+        "title": "SearchResultResponseDTO",
+        "type": "object"
+      },
       "SignupRequest": {
         "additionalProperties": false,
         "properties": {
@@ -6202,16 +7190,18 @@
         "title": "SimulationInput",
         "type": "object"
       },
-      "SourceDailyDTO": {
+      "SourceAggDTO": {
         "additionalProperties": false,
         "properties": {
           "answered": {
-            "default": 0,
             "title": "Answered",
             "type": "integer"
           },
+          "contactRate": {
+            "title": "Contactrate",
+            "type": "string"
+          },
           "contacted": {
-            "default": 0,
             "title": "Contacted",
             "type": "integer"
           },
@@ -6221,12 +7211,14 @@
             "type": "string"
           },
           "disqualified": {
-            "default": 0,
             "title": "Disqualified",
             "type": "integer"
           },
+          "qualYield": {
+            "title": "Qualyield",
+            "type": "string"
+          },
           "qualified": {
-            "default": 0,
             "title": "Qualified",
             "type": "integer"
           },
@@ -6235,66 +7227,166 @@
             "type": "string"
           },
           "totalCalls": {
-            "default": 0,
             "title": "Totalcalls",
             "type": "integer"
           },
           "transferred": {
-            "default": 0,
             "title": "Transferred",
             "type": "integer"
           },
+          "vendorName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendorname"
+          },
           "verifierAccepted": {
-            "default": 0,
             "title": "Verifieraccepted",
             "type": "integer"
           }
         },
         "required": [
           "date",
-          "source"
+          "source",
+          "totalCalls",
+          "answered",
+          "contacted",
+          "qualified",
+          "transferred",
+          "verifierAccepted",
+          "disqualified",
+          "contactRate",
+          "qualYield"
         ],
-        "title": "SourceDailyDTO",
+        "title": "SourceAggDTO",
         "type": "object"
       },
-      "SummaryDTO": {
+      "StartCallPayload": {
         "additionalProperties": false,
+        "description": "``POST /telephony/vicidial/start-call`` body.",
         "properties": {
-          "disqualificationsByReason": {
-            "items": {
-              "$ref": "#/components/schemas/DQBreakdownDTO"
-            },
-            "title": "Disqualificationsbyreason",
-            "type": "array"
-          },
-          "rangeFrom": {
-            "format": "date",
-            "title": "Rangefrom",
+          "callId": {
+            "format": "uuid",
+            "title": "Callid",
             "type": "string"
           },
-          "rangeTo": {
-            "format": "date",
-            "title": "Rangeto",
+          "callerNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callernumber"
+          },
+          "callerState": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callerstate"
+          },
+          "campaignId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignid"
+          },
+          "channelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channelid"
+          },
+          "didUsed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Didused"
+          },
+          "eventTs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eventts"
+          },
+          "leadId": {
+            "format": "uuid",
+            "title": "Leadid",
             "type": "string"
           },
-          "rates": {
-            "$ref": "#/components/schemas/RatesDTO"
+          "scriptVersionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scriptversionid"
           },
-          "today": {
-            "$ref": "#/components/schemas/TodayCountersDTO"
+          "vicidialCallId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidialcallid"
           },
-          "totals": {
-            "$ref": "#/components/schemas/CampaignTotalsDTO"
+          "vicidialLeadId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidialleadid"
           }
         },
         "required": [
-          "rangeFrom",
-          "rangeTo",
-          "totals",
-          "rates",
-          "today"
+          "leadId",
+          "callId"
         ],
-        "title": "SummaryDTO",
+        "title": "StartCallPayload",
         "type": "object"
       },
       "SuppressionCheckDTO": {
@@ -6601,66 +7693,6 @@
           "eventTs"
         ],
         "title": "TimelineEventDTO",
-        "type": "object"
-      },
-      "TodayCountersDTO": {
-        "additionalProperties": false,
-        "description": "Headline strip read from agg_dashboard_counters (single row).",
-        "properties": {
-          "activeCampaigns": {
-            "default": 0,
-            "title": "Activecampaigns",
-            "type": "integer"
-          },
-          "answeredToday": {
-            "default": 0,
-            "title": "Answeredtoday",
-            "type": "integer"
-          },
-          "callsToday": {
-            "default": 0,
-            "title": "Callstoday",
-            "type": "integer"
-          },
-          "capturedAt": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capturedat"
-          },
-          "enabledScripts": {
-            "default": 0,
-            "title": "Enabledscripts",
-            "type": "integer"
-          },
-          "liveCalls": {
-            "default": 0,
-            "title": "Livecalls",
-            "type": "integer"
-          },
-          "qualifiedToday": {
-            "default": 0,
-            "title": "Qualifiedtoday",
-            "type": "integer"
-          },
-          "suppressionCount": {
-            "default": 0,
-            "title": "Suppressioncount",
-            "type": "integer"
-          },
-          "totalCalls": {
-            "default": 0,
-            "title": "Totalcalls",
-            "type": "integer"
-          }
-        },
-        "title": "TodayCountersDTO",
         "type": "object"
       },
       "TokenResponse": {
@@ -7093,6 +8125,25 @@
         ],
         "title": "TransferStatus",
         "type": "string"
+      },
+      "UpdateBatchCampaignRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "campaignId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignid"
+          }
+        },
+        "title": "UpdateBatchCampaignRequest",
+        "type": "object"
       },
       "UpdateProfileRequest": {
         "additionalProperties": false,
@@ -7616,6 +8667,166 @@
         ],
         "title": "VerifierQueueItemDTO",
         "type": "object"
+      },
+      "VicidialRunRequest": {
+        "additionalProperties": false,
+        "description": "Start or stop the dialer run for one imported lead list.\n\nTurning the run ON pushes the batch's leads into the VICIdial hopper and\nincrements the run count.  Turning it OFF only changes TalkFlow state: the\nnon-agent API exposes no list/hopper pause, so the dialer may still be\nworking through records already in the hopper.",
+        "properties": {
+          "campaignId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignid"
+          },
+          "isActive": {
+            "title": "Isactive",
+            "type": "boolean"
+          },
+          "vicidialListId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidiallistid"
+          }
+        },
+        "required": [
+          "isActive"
+        ],
+        "title": "VicidialRunRequest",
+        "type": "object"
+      },
+      "VicidialRunResultDTO": {
+        "additionalProperties": false,
+        "description": "Outcome of a run toggle, including the hopper ingest tally.",
+        "properties": {
+          "accepted": {
+            "default": 0,
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "batchId": {
+            "format": "uuid",
+            "title": "Batchid",
+            "type": "string"
+          },
+          "dialerLeadIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dialerleadids",
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "isActiveForVicidial": {
+            "default": false,
+            "title": "Isactiveforvicidial",
+            "type": "boolean"
+          },
+          "rejected": {
+            "default": 0,
+            "title": "Rejected",
+            "type": "integer"
+          },
+          "submitted": {
+            "default": 0,
+            "title": "Submitted",
+            "type": "integer"
+          },
+          "vicidialListId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vicidiallistid"
+          },
+          "vicidialRunCount": {
+            "default": 0,
+            "title": "Vicidialruncount",
+            "type": "integer"
+          },
+          "vicidialStatus": {
+            "$ref": "#/components/schemas/VicidialRunStatus",
+            "default": "idle"
+          }
+        },
+        "required": [
+          "batchId"
+        ],
+        "title": "VicidialRunResultDTO",
+        "type": "object"
+      },
+      "VicidialRunStatus": {
+        "description": "Execution state of a lead list inside the VICIdial dialer.\n\n``RUNNING`` means the list has been pushed into the dialer hopper and is\neligible for dialing; ``INTERRUPTED`` means an operator toggled the run off\n(TalkFlow-side state only - the non-agent API has no pause function).",
+        "enum": [
+          "idle",
+          "running",
+          "completed",
+          "interrupted"
+        ],
+        "title": "VicidialRunStatus",
+        "type": "string"
+      },
+      "WebhookResult": {
+        "additionalProperties": false,
+        "description": "Acknowledgement returned to VICIdial.\n\n``ignored_duplicate: true`` signals the request was a replay; the caller\nshould treat HTTP 200 either way (no retry storm).",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ignoredDuplicate": {
+            "default": false,
+            "title": "Ignoredduplicate",
+            "type": "boolean"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          },
+          "status": {
+            "default": "processed",
+            "title": "Status",
+            "type": "string"
+          },
+          "valid": {
+            "default": true,
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "title": "WebhookResult",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -7627,7 +8838,7 @@
   },
   "info": {
     "title": "TalkFlow Control Plane",
-    "version": "0.2.0"
+    "version": "0.5.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -7707,14 +8918,41 @@
         ]
       }
     },
+    "/api/v1/alerts": {
+      "get": {
+        "description": "System alert log (Step 51).",
+        "operationId": "get_alerts_api_v1_alerts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_AlertDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Alerts",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
     "/api/v1/analytics/bot": {
       "get": {
-        "description": "Bot (agent alias) performance (section 28.5).",
-        "operationId": "get_bot_api_v1_analytics_bot_get",
+        "description": "Bot daily rollups from agg_bot_daily (Step 39).",
+        "operationId": "get_bot_analytics_api_v1_analytics_bot_get",
         "parameters": [
           {
             "in": "query",
-            "name": "from_",
+            "name": "from_date",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7726,7 +8964,7 @@
                   "type": "null"
                 }
               ],
-              "title": "From "
+              "title": "From Date"
             }
           },
           {
@@ -7745,49 +8983,10 @@
               ],
               "title": "To"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataResponse_list_BotDailyDTO__"
-                }
-              }
-            },
-            "description": "Successful Response"
           },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Bot",
-        "tags": [
-          "analytics"
-        ]
-      }
-    },
-    "/api/v1/analytics/campaigns": {
-      "get": {
-        "description": "Daily Medicare campaign summary (section 28.2).",
-        "operationId": "get_campaigns_api_v1_analytics_campaigns_get",
-        "parameters": [
           {
             "in": "query",
-            "name": "campaign_id",
+            "name": "campaignId",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7799,41 +8998,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Campaign Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "from_",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From "
-            }
-          },
-          {
-            "in": "query",
-            "name": "to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To"
+              "title": "Campaignid"
             }
           }
         ],
@@ -7842,7 +9007,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataResponse_list_CampaignDailyDTO__"
+                  "$ref": "#/components/schemas/DataResponse_list_BotAggDTO__"
                 }
               }
             },
@@ -7864,7 +9029,97 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Campaigns",
+        "summary": "Get Bot Analytics",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/campaigns": {
+      "get": {
+        "description": "Campaign daily rollups from agg_campaign_daily (Step 39).",
+        "operationId": "get_campaign_analytics_api_v1_analytics_campaigns_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_CampaignAggDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Campaign Analytics",
         "tags": [
           "analytics"
         ]
@@ -7872,12 +9127,12 @@
     },
     "/api/v1/analytics/compliance": {
       "get": {
-        "description": "Compliance review - disqualification reasons + QA auto-fails (section 28.6).",
-        "operationId": "get_compliance_api_v1_analytics_compliance_get",
+        "description": "Compliance daily rollups from agg_compliance_daily (Step 39).",
+        "operationId": "get_compliance_analytics_api_v1_analytics_compliance_get",
         "parameters": [
           {
             "in": "query",
-            "name": "from_",
+            "name": "from_date",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7889,7 +9144,7 @@
                   "type": "null"
                 }
               ],
-              "title": "From "
+              "title": "From Date"
             }
           },
           {
@@ -7908,6 +9163,23 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
           }
         ],
         "responses": {
@@ -7915,7 +9187,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataResponse_list_ComplianceDailyDTO__"
+                  "$ref": "#/components/schemas/DataResponse_list_ComplianceAggDTO__"
                 }
               }
             },
@@ -7937,7 +9209,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Compliance",
+        "summary": "Get Compliance Analytics",
         "tags": [
           "analytics"
         ]
@@ -7945,12 +9217,12 @@
     },
     "/api/v1/analytics/performance": {
       "get": {
-        "description": "AI latency / engineering telemetry from call_performance (section 28.7).",
-        "operationId": "get_performance_api_v1_analytics_performance_get",
+        "description": "LLM turn-latency percentiles per day and provider (docs/metrics.md).",
+        "operationId": "get_performance_analytics_api_v1_analytics_performance_get",
         "parameters": [
           {
             "in": "query",
-            "name": "from_",
+            "name": "from_date",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7962,7 +9234,7 @@
                   "type": "null"
                 }
               ],
-              "title": "From "
+              "title": "From Date"
             }
           },
           {
@@ -7981,6 +9253,23 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
           }
         ],
         "responses": {
@@ -7988,7 +9277,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataResponse_list_LatencyRowDTO__"
+                  "$ref": "#/components/schemas/DataResponse_list_PerformanceAggDTO__"
                 }
               }
             },
@@ -8010,7 +9299,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Performance",
+        "summary": "Get Performance Analytics",
         "tags": [
           "analytics"
         ]
@@ -8018,12 +9307,12 @@
     },
     "/api/v1/analytics/scripts": {
       "get": {
-        "description": "Script performance by version (section 28.3).",
-        "operationId": "get_scripts_api_v1_analytics_scripts_get",
+        "description": "Script version daily rollups from agg_script_version_daily (Step 39).",
+        "operationId": "get_script_analytics_api_v1_analytics_scripts_get",
         "parameters": [
           {
             "in": "query",
-            "name": "from_",
+            "name": "from_date",
             "required": false,
             "schema": {
               "anyOf": [
@@ -8035,7 +9324,7 @@
                   "type": "null"
                 }
               ],
-              "title": "From "
+              "title": "From Date"
             }
           },
           {
@@ -8054,6 +9343,23 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
           }
         ],
         "responses": {
@@ -8061,7 +9367,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataResponse_list_ScriptVersionDailyDTO__"
+                  "$ref": "#/components/schemas/DataResponse_list_ScriptVersionAggDTO__"
                 }
               }
             },
@@ -8083,7 +9389,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Scripts",
+        "summary": "Get Script Analytics",
         "tags": [
           "analytics"
         ]
@@ -8091,12 +9397,12 @@
     },
     "/api/v1/analytics/sources": {
       "get": {
-        "description": "Lead source quality (section 28.4).",
-        "operationId": "get_sources_api_v1_analytics_sources_get",
+        "description": "Lead source daily rollups from agg_source_daily (Step 39).",
+        "operationId": "get_source_analytics_api_v1_analytics_sources_get",
         "parameters": [
           {
             "in": "query",
-            "name": "from_",
+            "name": "from_date",
             "required": false,
             "schema": {
               "anyOf": [
@@ -8108,7 +9414,7 @@
                   "type": "null"
                 }
               ],
-              "title": "From "
+              "title": "From Date"
             }
           },
           {
@@ -8127,6 +9433,23 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
           }
         ],
         "responses": {
@@ -8134,7 +9457,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataResponse_list_SourceDailyDTO__"
+                  "$ref": "#/components/schemas/DataResponse_list_SourceAggDTO__"
                 }
               }
             },
@@ -8156,7 +9479,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Sources",
+        "summary": "Get Source Analytics",
         "tags": [
           "analytics"
         ]
@@ -8164,12 +9487,12 @@
     },
     "/api/v1/analytics/summary": {
       "get": {
-        "description": "Business overview: funnel totals, KPI rates, live counters (section 28.1).",
-        "operationId": "get_summary_api_v1_analytics_summary_get",
+        "description": "Aggregate summary funnel metrics from agg_campaign_daily (Step 39).",
+        "operationId": "get_analytics_summary_api_v1_analytics_summary_get",
         "parameters": [
           {
             "in": "query",
-            "name": "from_",
+            "name": "from_date",
             "required": false,
             "schema": {
               "anyOf": [
@@ -8181,7 +9504,7 @@
                   "type": "null"
                 }
               ],
-              "title": "From "
+              "title": "From Date"
             }
           },
           {
@@ -8200,6 +9523,23 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
           }
         ],
         "responses": {
@@ -8207,7 +9547,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataResponse_SummaryDTO_"
+                  "$ref": "#/components/schemas/DataResponse_AnalyticsSummaryDTO_"
                 }
               }
             },
@@ -8229,7 +9569,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Summary",
+        "summary": "Get Analytics Summary",
         "tags": [
           "analytics"
         ]
@@ -8408,6 +9748,28 @@
           }
         },
         "summary": "Pin Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "Rotate the HttpOnly refresh cookie and re-issue the access token.\n\nRequires no ambient authority: the refresh cookie is the credential and the\nresponse is a token rather than an action on a resource.",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh",
         "tags": [
           "auth"
         ]
@@ -8970,6 +10332,147 @@
           }
         ],
         "summary": "Get Performance",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/api/v1/calls/{call_id}/recording": {
+      "get": {
+        "description": "Fetch recording details for call (Step 37).",
+        "operationId": "get_call_recording_api_v1_calls__call_id__recording_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "call_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Call Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Call Recording",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/api/v1/calls/{call_id}/recording/download-token": {
+      "post": {
+        "description": "Single-use download token + audited recording.downloaded (Step 37).",
+        "operationId": "get_call_download_token_api_v1_calls__call_id__recording_download_token_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "call_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Call Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Call Download Token",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/api/v1/calls/{call_id}/recording/playback-url": {
+      "get": {
+        "description": "5-minute presigned playback URL + audited recording.played (Step 37).",
+        "operationId": "get_call_playback_url_api_v1_calls__call_id__recording_playback_url_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "call_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Call Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Call Playback Url",
         "tags": [
           "calls"
         ]
@@ -10092,6 +11595,33 @@
         "summary": "Health"
       }
     },
+    "/api/v1/integrations": {
+      "get": {
+        "description": "Integration configurations and status (Step 51).",
+        "operationId": "get_integrations_api_v1_integrations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_IntegrationDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Integrations",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
     "/api/v1/leads": {
       "get": {
         "operationId": "list_leads_api_v1_leads_get",
@@ -10204,6 +11734,23 @@
           },
           {
             "in": "query",
+            "name": "importJobId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Importjobid"
+            }
+          },
+          {
+            "in": "query",
             "name": "sort",
             "required": false,
             "schema": {
@@ -10307,6 +11854,200 @@
           }
         ],
         "summary": "Create Lead",
+        "tags": [
+          "leads"
+        ]
+      }
+    },
+    "/api/v1/leads/batches": {
+      "get": {
+        "description": "List all imported lead batches/files with metadata.",
+        "operationId": "list_lead_batches_api_v1_leads_batches_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_LeadBatchDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Lead Batches",
+        "tags": [
+          "leads"
+        ]
+      }
+    },
+    "/api/v1/leads/batches/{batch_id}": {
+      "delete": {
+        "description": "Delete an imported lead batch file and all its associated lead records from DB.",
+        "operationId": "delete_lead_batch_api_v1_leads_batches__batch_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_dict_str__Any__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Lead Batch",
+        "tags": [
+          "leads"
+        ]
+      }
+    },
+    "/api/v1/leads/batches/{batch_id}/campaign": {
+      "patch": {
+        "description": "Assign or update the target campaign for an imported lead batch.",
+        "operationId": "update_batch_campaign_api_v1_leads_batches__batch_id__campaign_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBatchCampaignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_dict_str__Any__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Batch Campaign",
+        "tags": [
+          "leads"
+        ]
+      }
+    },
+    "/api/v1/leads/batches/{batch_id}/vicidial-run": {
+      "patch": {
+        "description": "Start or stop the VICIdial run for an imported lead list.\n\nStarting pushes the list's leads into the dialer hopper and bumps the run\ncount; stopping records the interruption in TalkFlow (the non-agent API has\nno list pause). Gated on ``campaign.start`` because it authorizes dialing.",
+        "operationId": "set_batch_vicidial_run_api_v1_leads_batches__batch_id__vicidial_run_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VicidialRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_VicidialRunResultDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Batch Vicidial Run",
         "tags": [
           "leads"
         ]
@@ -10710,6 +12451,192 @@
         "summary": "Update Lead",
         "tags": [
           "leads"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "description": "Notification history log (Step 51).",
+        "operationId": "get_notifications_api_v1_notifications_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_NotificationDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Notifications",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/qa/reviews": {
+      "post": {
+        "description": "Submit QA call review (checks reviewer self-review prohibition and auto-fail).",
+        "operationId": "submit_qa_review_api_v1_qa_reviews_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QAReviewCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_QAReviewDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Submit Qa Review",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/sample": {
+      "get": {
+        "description": "Risk-weighted daily call sampling (Step 49).",
+        "operationId": "sample_calls_api_v1_qa_sample_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaignId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaignid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_QASampleCallDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Sample Calls",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/scorecards": {
+      "get": {
+        "description": "Fetch active QA scorecard and criteria.",
+        "operationId": "get_active_scorecard_api_v1_qa_scorecards_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_QAScorecardDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Active Scorecard",
+        "tags": [
+          "qa"
         ]
       }
     },
@@ -12474,6 +14401,72 @@
         ]
       }
     },
+    "/api/v1/search": {
+      "get": {
+        "description": "Unified global search with audited phone lookups (Step 51).",
+        "operationId": "global_search_api_v1_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResultResponseDTO"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Global Search",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
     "/api/v1/suppression": {
       "get": {
         "operationId": "list_suppression_api_v1_suppression_get",
@@ -12814,6 +14807,90 @@
         "summary": "Remove Suppression",
         "tags": [
           "suppression"
+        ]
+      }
+    },
+    "/api/v1/telephony/vicidial/dispo-call": {
+      "post": {
+        "description": "Stamp a dialer-side disposition (idempotent on lead+call id).",
+        "operationId": "dispo_call_api_v1_telephony_vicidial_dispo_call_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispoCallPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dispo Call",
+        "tags": [
+          "telephony"
+        ]
+      }
+    },
+    "/api/v1/telephony/vicidial/start-call": {
+      "post": {
+        "description": "Register a dialer-side call open (idempotent on lead+call id).",
+        "operationId": "start_call_api_v1_telephony_vicidial_start_call_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartCallPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Call",
+        "tags": [
+          "telephony"
         ]
       }
     },

@@ -64,4 +64,4 @@ async def test_fanout_masks_pii_per_subscriber():
     )
 
     assert masked_admin["caller"]["number"] == "+13125551234"
-    assert "(312) ***-1234" in masked_reporting["caller"]["number"]
+    assert masked_reporting["caller"]["number"] == "***-***-1234"

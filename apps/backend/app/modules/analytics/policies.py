@@ -19,6 +19,10 @@ from app.core.permissions import ADMIN_ROLE_NAMES
 
 _RATE_SCALE = 10_000
 
+#: The explicit read scope every repository query must be handed (Rule R5).
+#: ``{}`` means unrestricted; ``{"tenant_id": ...}`` narrows to one tenant.
+Scope = dict[str, Any]
+
 
 def scope_unlimited(user: UserContext) -> bool:
     """Warehouse reads are unrestricted for Master Admin / DevOps IT (Rule R5)."""
@@ -66,6 +70,7 @@ def verifier_close_rate(verifier_accepted: int, transferred: int) -> float:
 
 
 __all__ = [
+    "Scope",
     "contact_rate",
     "qualification_rate",
     "resolve_scope_constraints",

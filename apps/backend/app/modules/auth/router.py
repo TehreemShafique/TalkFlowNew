@@ -79,6 +79,24 @@ async def pin_login(
     )
 
 
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Db,
+):
+    """Rotate the HttpOnly refresh cookie and re-issue the access token.
+
+    Requires no ambient authority: the refresh cookie is the credential and the
+    response is a token rather than an action on a resource.
+    """
+    user, access_token = await service.refresh_session(db, request, response)
+    fresh = await get_user_by_id(db, user.id)
+    return TokenResponse(
+        access_token=access_token, user=service.serialize_user(fresh or user)
+    )
+
+
 @router.post(
     "/signup", response_model=MessageResponse, status_code=status.HTTP_201_CREATED
 )
@@ -134,9 +152,11 @@ async def update_profile(
 
     fresh, email_changed = await service.update_user_profile(db, user, payload)
     if email_changed:
-        # Re-issue a token so the JWT (which embeds the old email) stays valid.
+        # Re-issue so the JWT's ``sub`` (the old email) keeps resolving.  The
+        # session jti is reused deliberately: a fresh jti would have no
+        # ``user_sessions`` row and the very next request would 401.
         access_token, _ = create_access_token(
-            {"sub": fresh.email, "jti": service.generate_token_id()}
+            {"sub": fresh.email, "jti": current_user.session_token_id}
         )
         set_access_token_cookie(response, access_token)
         await service.refresh_user_role_cache(db, fresh)

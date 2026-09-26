@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
-from app.core.context import UserContext
 from app.core.security import create_signed_grant, decode_signed_grant
 from app.packages.contracts.enums import RecordingStatus
 
@@ -23,7 +21,7 @@ def test_recording_status_enum_alignment():
 def test_playback_url_token_generation():
     """Step 37: 5-minute presigned playback URL token validation."""
     storage_key = "recordings/rec_123.wav"
-    token, jti = create_signed_grant(storage_key, purpose="stream", ttl_seconds=300)
+    token, _jti = create_signed_grant(storage_key, purpose="stream", ttl_seconds=300)
 
     payload = decode_signed_grant(token)
     assert payload["sub"] == storage_key
@@ -33,7 +31,7 @@ def test_playback_url_token_generation():
 def test_download_token_generation():
     """Step 37: Single-use download token validation."""
     storage_key = "recordings/rec_123.wav"
-    token, jti = create_signed_grant(storage_key, purpose="download", ttl_seconds=300)
+    token, _jti = create_signed_grant(storage_key, purpose="download", ttl_seconds=300)
 
     payload = decode_signed_grant(token)
     assert payload["sub"] == storage_key

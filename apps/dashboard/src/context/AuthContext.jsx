@@ -56,9 +56,6 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const cleanEmail = String(email || "").trim().toLowerCase();
-      const isPhonovaAdmin =
-        cleanEmail === "admin@phonova.io" &&
-        (password === "e4GLTRrHlBFyFy47" || password === "admin123");
 
       const response = await apiFetch("/auth/login", {
         method: "POST",
@@ -73,43 +70,8 @@ export function AuthProvider({ children }) {
         return loggedUser;
       }
 
-      if (isPhonovaAdmin) {
-        const fallbackUser = {
-          id: "admin-user-id",
-          email: "admin@phonova.io",
-          firstName: "Admin",
-          lastName: "Phonova",
-          username: "admin",
-          role: "super_admin",
-          status: "APPROVED",
-        };
-        setStoredUser(fallbackUser);
-        setUser(fallbackUser);
-        return fallbackUser;
-      }
-
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || error.message || "Invalid credentials. Please try again.");
-    } catch (err) {
-      const cleanEmail = String(email || "").trim().toLowerCase();
-      if (
-        cleanEmail === "admin@phonova.io" &&
-        (password === "e4GLTRrHlBFyFy47" || password === "admin123")
-      ) {
-        const fallbackUser = {
-          id: "admin-user-id",
-          email: "admin@phonova.io",
-          firstName: "Admin",
-          lastName: "Phonova",
-          username: "admin",
-          role: "super_admin",
-          status: "APPROVED",
-        };
-        setStoredUser(fallbackUser);
-        setUser(fallbackUser);
-        return fallbackUser;
-      }
-      throw err;
     } finally {
       setLoading(false);
     }

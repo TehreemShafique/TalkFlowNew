@@ -30,17 +30,19 @@ from sqlalchemy import MetaData, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.core.context import UserContext
 from app.core.database import get_db
 from app.core.redis import get_redis
 from app.core.security import create_access_token
 from app.modules.users_rbac import repository as users_repo
 from app.modules.users_rbac.service import seed_roles
 from app.packages.contracts.enums import RecordingStatus, UserStatus
+from app.packages.db import models
 from app.packages.db.base import Base
 from app.packages.db.models import (
     CallRecording,
     User,
-    _shared,
+    UserSession,
     call_transcripts_table,
     calls_table,
     campaigns_table,
@@ -54,18 +56,22 @@ VIEWER_EMAIL = "qa-test-viewer@phonova.io"
 
 # Register the shared projections on Base.metadata so CallRecording's FKs
 # (calls / leads / campaigns / retention_policies) resolve within one metadata
-# for create_all / drop_all.  Test-process only; the app is unaffected.
-for _shared_table in list(_shared.tables.values()):
-    if _shared_table.name not in Base.metadata.tables:
-        Base.metadata._add_table(
-            _shared_table.name, _shared_table.schema, _shared_table
-        )
+# for create_all / drop_all.  Shared with alembic/env.py so autogenerate sees
+# the same schema the tests build.
+models.merge_shared_metadata(Base.metadata)
 
 _TRUNCATE = text(
     "TRUNCATE TABLE outbox, audit_log, qa_reviews, call_transcripts, call_recordings, "
     "call_qualification_fields, call_performance, call_node_path, call_events, "
     "transcript_turns, calls, leads, lead_import_jobs, suppression_entries, exports, "
-    "campaigns, script_activations, script_versions, scripts, retention_policies, user_sessions, user_roles, users, roles "
+    "campaigns, script_activations, script_versions, scripts, retention_policies, "
+    # refresh_tokens before users: it FKs users.id with ON DELETE CASCADE, and
+    # listing it explicitly keeps the reset order obvious.
+    "refresh_tokens, user_sessions, user_roles, users, roles, "
+    # Rollup state must reset too, otherwise a persisted agg_rollup_watermark from
+    # an earlier test leaves the next test with an already-advanced window.
+    "agg_campaign_daily, agg_script_version_daily, agg_source_daily, agg_bot_daily, "
+    "agg_compliance_daily, agg_dashboard_counters, agg_rollup_watermark "
     "RESTART IDENTITY CASCADE"
 )
 
@@ -238,13 +244,49 @@ async def seeded(engine):
         audio_path.parent.mkdir(parents=True, exist_ok=True)
         audio_path.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfake-audio-bytes")
 
-        admin_token, _ = create_access_token({"sub": ADMIN_EMAIL})
-        viewer_token, _ = create_access_token({"sub": VIEWER_EMAIL})
+        # ``require_auth`` verifies the DB-backed session ledger, so every minted
+        # token needs a live ``user_sessions`` row (one row per JWT jti).
+        issued_at = datetime.now(UTC)
+        admin_token, admin_jti = create_access_token({"sub": ADMIN_EMAIL})
+        viewer_token, viewer_jti = create_access_token({"sub": VIEWER_EMAIL})
+        db.add_all(
+            [
+                UserSession(
+                    id=uuid.uuid4(),
+                    user_id=admin_id,
+                    token_id=admin_jti,
+                    ip_address="127.0.0.1",
+                    user_agent="pytest",
+                    last_seen_at=issued_at,
+                ),
+                UserSession(
+                    id=uuid.uuid4(),
+                    user_id=viewer_id,
+                    token_id=viewer_jti,
+                    ip_address="127.0.0.1",
+                    user_agent="pytest",
+                    last_seen_at=issued_at,
+                ),
+            ]
+        )
+        await db.commit()
+
+    # Service-layer helpers take a resolved ``UserContext`` rather than a raw
+    # id, so expose the seeded principals alongside their ids.
+    admin_principal = UserContext.from_principal(
+        user_id=admin_id, role="MASTER_ADMIN", permissions=set(), tenant_id=None
+    )
+    viewer_principal = UserContext.from_principal(
+        user_id=viewer_id, role="VIEWER", permissions=set(), tenant_id=None
+    )
 
     return {
         "factory": factory,
         "admin_id": admin_id,
         "viewer_id": viewer_id,
+        "admin": admin_principal,
+        "user": admin_principal,
+        "viewer": viewer_principal,
         "headers": {"Authorization": f"Bearer {admin_token}"},
         "viewer_headers": {"Authorization": f"Bearer {viewer_token}"},
         "recording_id": recording_id,

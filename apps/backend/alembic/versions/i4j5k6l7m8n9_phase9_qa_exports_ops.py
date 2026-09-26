@@ -6,8 +6,8 @@ Create Date: 2026-09-22
 """
 
 from collections.abc import Sequence
+
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "i4j5k6l7m8n9"
 down_revision: str | None = "h3i4j5k6l7m8"
@@ -16,6 +16,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # One statement per op.execute(): asyncpg refuses multiple commands in a
+    # single prepared statement, so a batched string fails on any async
+    # connection.  Order is FK-significant (criteria/reviews -> scorecards,
+    # review_scores -> reviews).
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS qa_scorecards (
@@ -25,8 +29,11 @@ def upgrade() -> None:
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        );
-
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS qa_scorecard_criteria (
             id UUID PRIMARY KEY,
             scorecard_id UUID NOT NULL REFERENCES qa_scorecards(id) ON DELETE CASCADE,
@@ -36,8 +43,11 @@ def upgrade() -> None:
             auto_fail BOOLEAN NOT NULL DEFAULT FALSE,
             display_order INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        );
-
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS qa_reviews (
             id UUID PRIMARY KEY,
             call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
@@ -49,16 +59,22 @@ def upgrade() -> None:
             auto_failed BOOLEAN NOT NULL DEFAULT FALSE,
             notes TEXT,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        );
-
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS qa_review_scores (
             id UUID PRIMARY KEY,
             review_id UUID NOT NULL REFERENCES qa_reviews(id) ON DELETE CASCADE,
             criterion_id UUID NOT NULL REFERENCES qa_scorecard_criteria(id),
             score_value DOUBLE PRECISION NOT NULL DEFAULT 0.0,
             auto_failed BOOLEAN NOT NULL DEFAULT FALSE
-        );
-
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS alerts (
             id UUID PRIMARY KEY,
             code VARCHAR(80) NOT NULL,
@@ -71,8 +87,11 @@ def upgrade() -> None:
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             acknowledged_at TIMESTAMPTZ,
             acknowledged_by UUID REFERENCES users(id)
-        );
-
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS integrations (
             id UUID PRIMARY KEY,
             name VARCHAR(120) NOT NULL,
@@ -81,8 +100,11 @@ def upgrade() -> None:
             config JSONB DEFAULT '{}'::jsonb,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        );
-
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS notifications (
             id UUID PRIMARY KEY,
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -91,20 +113,19 @@ def upgrade() -> None:
             type VARCHAR(40) NOT NULL DEFAULT 'info',
             read_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        );
+        )
         """
     )
 
 
 def downgrade() -> None:
-    op.execute(
-        """
-        DROP TABLE IF EXISTS notifications CASCADE;
-        DROP TABLE IF EXISTS integrations CASCADE;
-        DROP TABLE IF EXISTS alerts CASCADE;
-        DROP TABLE IF EXISTS qa_review_scores CASCADE;
-        DROP TABLE IF EXISTS qa_reviews CASCADE;
-        DROP TABLE IF EXISTS qa_scorecard_criteria CASCADE;
-        DROP TABLE IF EXISTS qa_scorecards CASCADE;
-        """
-    )
+    for table in (
+        "notifications",
+        "integrations",
+        "alerts",
+        "qa_review_scores",
+        "qa_reviews",
+        "qa_scorecard_criteria",
+        "qa_scorecards",
+    ):
+        op.execute(f"DROP TABLE IF EXISTS {table} CASCADE")

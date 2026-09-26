@@ -8,11 +8,13 @@ import json
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
+from app.core.config import settings
 from app.core.context import UserContext
 from app.core.database import async_session_factory
 from app.core.dependencies import fetch_user_by_email
 from app.core.permissions import permissions_for_roles
 from app.core.security import decode_access_token
+from app.core.tls import websocket_is_exempt, websocket_is_secure
 from app.modules.realtime.manager import (
     PING_INTERVAL_SECONDS,
     manager,
@@ -54,6 +56,12 @@ async def _resolve_user_context(token: str) -> UserContext | None:
 @router.websocket("/ws")
 @router.websocket("/api/v1/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    if settings.enforce_https and not (
+        websocket_is_secure(websocket) or websocket_is_exempt(websocket)
+    ):
+        logger.warning("ws rejected: TLS required")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
     await websocket.accept()
     session_id = await manager.register_socket(websocket)
     logger.info("ws client connected", session_id=session_id)

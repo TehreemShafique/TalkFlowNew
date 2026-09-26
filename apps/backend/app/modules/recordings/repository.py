@@ -3,6 +3,7 @@
 Every query embeds the caller's scope constraints at the ORM level so an
 over-broad IEnumerable call can never leak another tenant's rows.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -94,10 +95,10 @@ async def get_recording(
         .outerjoin(leads_table, leads_table.c.id == CallRecording.lead_id)
         .outerjoin(campaigns_table, campaigns_table.c.id == CallRecording.campaign_id)
         .outerjoin(User, User.id == calls_table.c.verifier_id)
-        .outerjoin(qa_reviews_table, qa_reviews_table.c.call_id == CallRecording.call_id)
-        .where(
-            and_(CallRecording.id == recording_id, *_scope_filters(constraints))
+        .outerjoin(
+            qa_reviews_table, qa_reviews_table.c.call_id == CallRecording.call_id
         )
+        .where(and_(CallRecording.id == recording_id, *_scope_filters(constraints)))
     )
     row = (await session.execute(stmt)).first()
     if row is None:
@@ -175,13 +176,11 @@ async def list_recordings(
         .outerjoin(leads_table, leads_table.c.id == CallRecording.lead_id)
         .outerjoin(campaigns_table, campaigns_table.c.id == CallRecording.campaign_id)
         .outerjoin(User, User.id == calls_table.c.verifier_id)
-        .outerjoin(qa_reviews_table, qa_reviews_table.c.call_id == CallRecording.call_id)
-        .where(and_(True, *filters))
-        .order_by(
-            CallRecording.created_at.desc()
-            if query.sort not in ("created_at", None)
-            else CallRecording.created_at.desc()
+        .outerjoin(
+            qa_reviews_table, qa_reviews_table.c.call_id == CallRecording.call_id
         )
+        .where(and_(True, *filters))
+        .order_by(CallRecording.created_at.desc())
         .offset((query.page - 1) * query.page_size)
         .limit(query.page_size)
     )
@@ -195,7 +194,9 @@ async def list_recordings(
     transcripts = await _fetch_transcripts(session, call_ids)
     for r in raw_rows:
         ent = r.get("CallRecording")
-        r["transcript"] = transcripts.get(ent.call_id) if isinstance(ent, CallRecording) else None
+        r["transcript"] = (
+            transcripts.get(ent.call_id) if isinstance(ent, CallRecording) else None
+        )
     return raw_rows, total
 
 

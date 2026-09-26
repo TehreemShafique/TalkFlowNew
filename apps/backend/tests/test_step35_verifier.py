@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import uuid
 
 import pytest
 
@@ -14,7 +13,7 @@ from app.modules.verifier.schemas import VerifierAcceptContextDTO
 @pytest.mark.asyncio
 async def test_accept_returns_full_context_in_one_call(seeded):
     """Accept returns everything in ONE payload in under 300ms (Step 35)."""
-    call_id = uuid.uuid4()
+    call_id = seeded["call_id"]
     admin_user = seeded["admin"]
 
     start_time = time.perf_counter()

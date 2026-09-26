@@ -68,6 +68,7 @@ def _nodes_from_simple_text(
         }
     )
 
+    q_list = questions if questions is not None else ["Are you enrolled in Medicare Part A and B?"]
     c_text = (
         consent
         or "This call is recorded for quality and compliance purposes. May we proceed?"
@@ -89,7 +90,7 @@ def _nodes_from_simple_text(
                     "id": "tr-2a",
                     "when": "yes",
                     "nextNodeId": "node-q1"
-                    if (questions and len(questions) > 0)
+                    if len(q_list) > 0
                     else "node-transfer",
                 },
                 {
@@ -103,7 +104,6 @@ def _nodes_from_simple_text(
         }
     )
 
-    q_list = questions or ["Are you enrolled in Medicare Part A and B?"]
     for idx, q_prompt in enumerate(q_list, start=1):
         q_id = f"node-q{idx}"
         next_id = f"node-q{idx + 1}" if idx < len(q_list) else "node-transfer"
@@ -385,6 +385,7 @@ async def create_script(
         details={"name": script.name},
     )
 
+    await db.commit()
     return DataResponse(data=await _to_script_dto(db, script, [version]))
 
 
@@ -429,7 +430,7 @@ async def update_script(
 
     script.version += 1
     script.updated_at = datetime.now(UTC)
-    await db.flush()
+    await db.commit()
 
     await write_audit(
         db,
@@ -491,6 +492,7 @@ async def duplicate_script(
         details={"sourceScriptId": str(source.id)},
     )
 
+    await db.commit()
     return DataResponse(data=await _to_script_dto(db, script, [ver]))
 
 
@@ -564,6 +566,7 @@ async def create_version(
         },
     )
 
+    await db.commit()
     return DataResponse(data=_to_version_dto(ver))
 
 
@@ -636,7 +639,7 @@ async def update_version(
     if payload.change_note is not None:
         ver.change_note = payload.change_note
 
-    await db.flush()
+    await db.commit()
 
     await write_audit(
         db,
@@ -673,7 +676,7 @@ async def submit_version(
     ver.status = ScriptStatus.PENDING_APPROVAL.value
     ver.submitted_by = actor.user_id
     ver.submitted_at = datetime.now(UTC)
-    await db.flush()
+    await db.commit()
 
     await publish_script_event(
         db,
@@ -723,7 +726,7 @@ async def approve_version(
     if script and script.status == ScriptStatus.DRAFT.value:
         script.status = ScriptStatus.APPROVED.value
 
-    await db.flush()
+    await db.commit()
 
     await publish_script_event(
         db,
@@ -768,7 +771,7 @@ async def reject_version(
 
     ver.status = ScriptStatus.DRAFT.value
     ver.rejected_reason = payload.reason
-    await db.flush()
+    await db.commit()
 
     await publish_script_event(
         db,
@@ -851,7 +854,7 @@ async def activate_version(
         activated_by=actor.user_id,
     )
     db.add(activation)
-    await db.flush()
+    await db.commit()
 
     await publish_script_event(
         db,

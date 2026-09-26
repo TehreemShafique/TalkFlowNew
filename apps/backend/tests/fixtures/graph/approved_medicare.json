@@ -1,0 +1,52 @@
+{
+  "entryNodeId": "n_greeting",
+  "nodes": [
+    {
+      "id": "n_greeting",
+      "type": "greeting",
+      "prompt": "Hello! This is TalkFlow on a recorded line regarding your Medicare benefits.",
+      "transitions": [{"when": "always", "nextNodeId": "n_disclaimer"}]
+    },
+    {
+      "id": "n_disclaimer",
+      "type": "compliance",
+      "complianceRole": "tpmo_disclaimer",
+      "prompt": "We do not offer every plan available in your area. Any information we provide is limited to those plans we do offer in your area. Please contact Medicare.gov or 1-800-MEDICARE to get information on all of your options.",
+      "transitions": [{"when": "always", "nextNodeId": "n_part_ab"}]
+    },
+    {
+      "id": "n_part_ab",
+      "type": "question",
+      "discussesBenefits": true,
+      "field": "medicare_part_ab",
+      "prompt": "Do you currently have Medicare Parts A and B?",
+      "transitions": [
+        {"when": "yes", "nextNodeId": "n_age_range"},
+        {"when": "no", "nextNodeId": "n_closing_disqualified"}
+      ]
+    },
+    {
+      "id": "n_age_range",
+      "type": "question",
+      "discussesBenefits": true,
+      "field": "age_in_range",
+      "prompt": "Are you 65 years of age or older?",
+      "transitions": [
+        {"when": "yes", "nextNodeId": "n_transfer_qualified"},
+        {"when": "no", "nextNodeId": "n_closing_disqualified"}
+      ]
+    },
+    {
+      "id": "n_transfer_qualified",
+      "type": "transfer",
+      "terminal": true,
+      "prompt": "Great! Please hold while I connect you with a licensed Medicare verifier."
+    },
+    {
+      "id": "n_closing_disqualified",
+      "type": "closing",
+      "terminal": true,
+      "prompt": "Thank you for your time. Have a great day!"
+    }
+  ]
+}

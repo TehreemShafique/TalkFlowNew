@@ -10,8 +10,6 @@ import json
 import uuid
 from datetime import date
 
-import pytest
-
 from app.core.context import UserContext
 from app.modules.analytics import policies
 from app.modules.analytics.policies import (
@@ -21,7 +19,6 @@ from app.modules.analytics.policies import (
     verifier_close_rate,
 )
 from app.modules.analytics.schemas import (
-    AnalyticsDateQuery,
     AnalyticsSummaryDTO,
     CampaignAggDTO,
 )

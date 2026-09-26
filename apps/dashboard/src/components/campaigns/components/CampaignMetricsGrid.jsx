@@ -60,7 +60,12 @@ export default function CampaignMetricsGrid({ campaigns: propCampaigns }) {
         } catch (e) {}
       }
       try {
-        const res = await apiFetch("/calls?page_size=500");
+        // `pageSize` (camelCase) is the registered query key; `page_size` was
+        // silently dropped and returned the default 20-row page. The server
+        // caps page size at 200 (`le=200`), so asking for more is a 422 - and
+        // the panels below filter by campaign client-side, so a 200-row
+        // window is what these aggregates are computed over.
+        const res = await apiFetch("/calls?pageSize=200");
         if (res && res.ok) {
           const json = await res.json();
           const apiCalls = json.data || json.items || [];

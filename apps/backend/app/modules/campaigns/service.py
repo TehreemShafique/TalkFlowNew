@@ -116,6 +116,10 @@ async def _snapshot_async(
         ver = await session.get(ScriptVersion, campaign.active_script_version_id)
         if ver:
             ver_status = ver.status
+    # Caller IDs live in the opaque ``dialing`` config blob rather than a
+    # dedicated column, so the start guard reads them from there.
+    dialing = campaign.dialing or {}
+    caller_ids = dialing.get("callerIds") or dialing.get("caller_ids") or []
     return CampaignSnapshot(
         active_script_version_id=campaign.active_script_version_id,
         script_version_status=ver_status,
@@ -124,6 +128,7 @@ async def _snapshot_async(
         closer_in_group=campaign.closer_in_group,
         vicidial_campaign_id=campaign.vicidial_campaign_id,
         vicidial_list_ids=tuple(list_ids),
+        caller_ids=tuple(str(cid) for cid in caller_ids),
     )
 
 

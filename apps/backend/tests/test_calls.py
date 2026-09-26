@@ -312,7 +312,7 @@ async def test_phone_masked_without_pii_permission(client, seeded):
 
     assert admin.json()["data"]["caller"]["number"] == "+18505554586"
     assert viewer.json()["data"]["caller"]["number"] is None
-    assert viewer.json()["data"]["caller"]["masked"] == "(850) ***-4586"
+    assert viewer.json()["data"]["caller"]["masked"] == "***-***-4586"
 
 
 async def test_transcript_search(seeded):

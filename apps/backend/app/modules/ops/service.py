@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import UTC, datetime
-from typing import Any
-from sqlalchemy import select, text
+
+from sqlalchemy import Text, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import write_audit
@@ -24,7 +24,14 @@ from app.modules.ops.schemas import (
 )
 from app.packages.contracts.base import DataResponse
 from app.packages.contracts.enums import AuditResult
-from app.packages.db.models import AlertItem, Call, Campaign, IntegrationItem, Lead, NotificationItem
+from app.packages.db.models import (
+    AlertItem,
+    Call,
+    Campaign,
+    IntegrationItem,
+    Lead,
+    NotificationItem,
+)
 
 
 async def get_health_status(session: AsyncSession) -> HealthCheckResponseDTO:
@@ -36,36 +43,99 @@ async def get_health_status(session: AsyncSession) -> HealthCheckResponseDTO:
     try:
         res = await session.execute(text("SELECT 1"))
         _ = res.scalar()
-        cards.append(HealthCardDTO(name="PostgreSQL Core DB", status="healthy", details="Connected", checked_at=now))
-    except Exception as exc:
+        cards.append(
+            HealthCardDTO(
+                name="PostgreSQL Core DB",
+                status="healthy",
+                details="Connected",
+                checked_at=now,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - probe must not crash the endpoint
         overall = "degraded"
-        cards.append(HealthCardDTO(name="PostgreSQL Core DB", status="unhealthy", details=str(exc), checked_at=now))
+        cards.append(
+            HealthCardDTO(
+                name="PostgreSQL Core DB",
+                status="unhealthy",
+                details=str(exc),
+                checked_at=now,
+            )
+        )
 
     # 2. Redis Cache & Event Store
     try:
         r = get_redis()
         await r.ping()
-        cards.append(HealthCardDTO(name="Redis Event Stream", status="healthy", details="PONG", checked_at=now))
-    except Exception as exc:
+        cards.append(
+            HealthCardDTO(
+                name="Redis Event Stream",
+                status="healthy",
+                details="PONG",
+                checked_at=now,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - probe must not crash the endpoint
         overall = "degraded"
-        cards.append(HealthCardDTO(name="Redis Event Stream", status="unhealthy", details=str(exc), checked_at=now))
+        cards.append(
+            HealthCardDTO(
+                name="Redis Event Stream",
+                status="unhealthy",
+                details=str(exc),
+                checked_at=now,
+            )
+        )
 
     # 3. Kafka Stream Probe
-    cards.append(HealthCardDTO(name="Kafka Outbox Stream", status="disabled", details="Kafka optional / disabled in dev config", checked_at=now))
+    cards.append(
+        HealthCardDTO(
+            name="Kafka Outbox Stream",
+            status="disabled",
+            details="Kafka optional / disabled in dev config",
+            checked_at=now,
+        )
+    )
 
     # 4. VICIdial API Card (Step 51 requirement)
     vicidial_api_url = getattr(settings, "vicidial_api_url", None)
     if vicidial_api_url:
-        cards.append(HealthCardDTO(name="VICIdial Non-Agent API", status="healthy", details=f"Configured: {vicidial_api_url}", checked_at=now))
+        cards.append(
+            HealthCardDTO(
+                name="VICIdial Non-Agent API",
+                status="healthy",
+                details=f"Configured: {vicidial_api_url}",
+                checked_at=now,
+            )
+        )
     else:
-        cards.append(HealthCardDTO(name="VICIdial Non-Agent API", status="disabled", details="Manual Telephony Adapter Mode", checked_at=now))
+        cards.append(
+            HealthCardDTO(
+                name="VICIdial Non-Agent API",
+                status="disabled",
+                details="Manual Telephony Adapter Mode",
+                checked_at=now,
+            )
+        )
 
     # 5. VICIdial MySQL Card (Step 51 requirement)
     vicidial_db_url = getattr(settings, "vicidial_db_url", None)
     if vicidial_db_url:
-        cards.append(HealthCardDTO(name="VICIdial MySQL DB", status="healthy", details="Database configured", checked_at=now))
+        cards.append(
+            HealthCardDTO(
+                name="VICIdial MySQL DB",
+                status="healthy",
+                details="Database configured",
+                checked_at=now,
+            )
+        )
     else:
-        cards.append(HealthCardDTO(name="VICIdial MySQL DB", status="disabled", details="Manual Telephony Adapter Mode", checked_at=now))
+        cards.append(
+            HealthCardDTO(
+                name="VICIdial MySQL DB",
+                status="disabled",
+                details="Manual Telephony Adapter Mode",
+                checked_at=now,
+            )
+        )
 
     return HealthCheckResponseDTO(status=overall, cards=cards, timestamp=now)
 
@@ -77,17 +147,19 @@ async def get_alerts(session: AsyncSession) -> DataResponse[list[AlertDTO]]:
     if not rows:
         # Default active system health check alert if DB has no historical alerts
         now = datetime.now(UTC)
-        return DataResponse(data=[
-            AlertDTO(
-                id=uuid.uuid4(),
-                code="sys.reconciler.ok",
-                severity="info",
-                title="Reconcilers Synchronized",
-                message="All background reconciler routines operating within SLA limits.",
-                status="active",
-                created_at=now,
-            )
-        ])
+        return DataResponse(
+            data=[
+                AlertDTO(
+                    id=uuid.uuid4(),
+                    code="sys.reconciler.ok",
+                    severity="info",
+                    title="Reconcilers Synchronized",
+                    message="All background reconciler routines operating within SLA limits.",
+                    status="active",
+                    created_at=now,
+                )
+            ]
+        )
 
     dtos = [
         AlertDTO(
@@ -133,7 +205,7 @@ async def global_search(
         c_stmt = (
             select(Call)
             .where(
-                (Call.id.cast(text("text")).ilike(f"%{q_trimmed}%"))
+                (Call.id.cast(Text).ilike(f"%{q_trimmed}%"))
                 | (Call.caller_number.ilike(f"%{q_trimmed}%"))
                 | (Call.disposition.ilike(f"%{q_trimmed}%"))
             )
@@ -169,7 +241,8 @@ async def global_search(
                 SearchItemDTO(
                     id=str(lead.id),
                     type="lead",
-                    title=f"{lead.first_name or ''} {lead.last_name or ''}".strip() or lead.external_key,
+                    title=f"{lead.first_name or ''} {lead.last_name or ''}".strip()
+                    or lead.external_key,
                     subtitle=f"Phone: {lead.phone_normalized} | Status: {lead.status}",
                     url=f"/leads?search={lead.external_key}",
                 )
@@ -177,7 +250,9 @@ async def global_search(
 
     # 3. Search Campaigns
     if not search_type or search_type == "campaigns":
-        cmp_stmt = select(Campaign).where(Campaign.name.ilike(f"%{q_trimmed}%")).limit(10)
+        cmp_stmt = (
+            select(Campaign).where(Campaign.name.ilike(f"%{q_trimmed}%")).limit(10)
+        )
         cmp_res = await session.execute(cmp_stmt)
         for cmp_row in cmp_res.scalars().all():
             items.append(
@@ -199,24 +274,26 @@ async def get_integrations(session: AsyncSession) -> DataResponse[list[Integrati
     rows = res.scalars().all()
     if not rows:
         now = datetime.now(UTC)
-        return DataResponse(data=[
-            IntegrationDTO(
-                id=uuid.uuid4(),
-                name="VICIdial Core Adapter",
-                type="dialer",
-                status="configured",
-                config={"adapter": "ManualDialAdapter"},
-                updated_at=now,
-            ),
-            IntegrationDTO(
-                id=uuid.uuid4(),
-                name="S3 Audio Storage Provider",
-                type="storage",
-                status="active",
-                config={"provider": "local"},
-                updated_at=now,
-            ),
-        ])
+        return DataResponse(
+            data=[
+                IntegrationDTO(
+                    id=uuid.uuid4(),
+                    name="VICIdial Core Adapter",
+                    type="dialer",
+                    status="configured",
+                    config={"adapter": "ManualDialAdapter"},
+                    updated_at=now,
+                ),
+                IntegrationDTO(
+                    id=uuid.uuid4(),
+                    name="S3 Audio Storage Provider",
+                    type="storage",
+                    status="active",
+                    config={"provider": "local"},
+                    updated_at=now,
+                ),
+            ]
+        )
 
     dtos = [
         IntegrationDTO(
@@ -237,7 +314,10 @@ async def get_notifications(
 ) -> DataResponse[list[NotificationDTO]]:
     stmt = (
         select(NotificationItem)
-        .where((NotificationItem.user_id == user.user_id) | (NotificationItem.user_id.is_(None)))
+        .where(
+            (NotificationItem.user_id == user.user_id)
+            | (NotificationItem.user_id.is_(None))
+        )
         .order_by(NotificationItem.created_at.desc())
         .limit(20)
     )
@@ -245,16 +325,18 @@ async def get_notifications(
     rows = res.scalars().all()
     if not rows:
         now = datetime.now(UTC)
-        return DataResponse(data=[
-            NotificationDTO(
-                id=uuid.uuid4(),
-                title="System Operational",
-                message="TalkFlow platform control plane is healthy and operational.",
-                type="info",
-                read=False,
-                created_at=now,
-            )
-        ])
+        return DataResponse(
+            data=[
+                NotificationDTO(
+                    id=uuid.uuid4(),
+                    title="System Operational",
+                    message="TalkFlow platform control plane is healthy and operational.",
+                    type="info",
+                    read=False,
+                    created_at=now,
+                )
+            ]
+        )
 
     dtos = [
         NotificationDTO(

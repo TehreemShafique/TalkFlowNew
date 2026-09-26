@@ -1,8 +1,12 @@
-"""Storage providers - local disk and S3/MinIO.
+"""Storage providers - local disk and S3/MinIO/R2.
 
 Local provider returns **short-lived signed playback/download grants** (not raw
 paths - Rule R7); S3/MinIO returns **SigV4 presigned URLs** hand-rolled so the
 control plane has no botocore dependency (pyproject.toml has none).
+
+RP-27: object storage is private, TLS-only, and every PUT is written with
+server-side encryption (``AES256`` or ``aws:kms``); presigned GETs are clamped
+to a short TTL so a leaked URL expires quickly.
 """
 
 from __future__ import annotations
@@ -18,9 +22,28 @@ import httpx
 
 from app.core.config import settings
 from app.core.security import create_signed_grant
+from app.core.tls import (
+    TLSPolicyError,
+    assert_encrypted_endpoint,
+    server_side_encryption_enabled,
+)
 from app.packages.contracts.enums import StorageProvider
 
 StorageResult = str  # presigned URL or signed grant token payload
+
+_PURPOSE_ROUTES = {"stream": "stream", "download": "download"}
+
+
+def clamp_presign_ttl(ttl_seconds: int, purpose: str) -> int:
+    """Never hand out a presigned URL that outlives its policy window."""
+    ceiling = settings.storage_presign_max_ttl_seconds
+    if purpose == "stream":
+        ceiling = min(ceiling, settings.playback_url_ttl_seconds)
+    try:
+        ttl = int(ttl_seconds)
+    except (TypeError, ValueError):
+        ttl = ceiling
+    return max(1, min(ttl, ceiling))
 
 
 class BaseStorageProvider(ABC):
@@ -66,10 +89,14 @@ class LocalStorageProvider(BaseStorageProvider):
     def build_access_url(
         self, *, storage_key: str, purpose: str, ttl_seconds: int
     ) -> str:
+        route = _PURPOSE_ROUTES.get(purpose, "stream")
         token, _ = create_signed_grant(
-            storage_key, purpose=purpose, ttl_seconds=ttl_seconds
+            storage_key,
+            purpose=purpose,
+            ttl_seconds=clamp_presign_ttl(ttl_seconds, purpose),
         )
-        return f"{self.public_base}/api/v1/recordings/stream/{urllib.parse.quote(token, safe='')}"
+        quoted = urllib.parse.quote(token, safe="")
+        return f"{self.public_base}/api/v1/recordings/{route}/{quoted}"
 
     async def put_bytes(
         self,
@@ -93,7 +120,7 @@ class LocalStorageProvider(BaseStorageProvider):
 
 
 class S3StorageProvider(BaseStorageProvider):
-    """SigV4 presigned URLs + signed DELETE via httpx (no botocore)."""
+    """SigV4 presigned URLs + signed PUT/DELETE via httpx (no botocore)."""
 
     def __init__(self) -> None:
         self.endpoint = settings.storage_s3_endpoint.rstrip("/")
@@ -101,23 +128,65 @@ class S3StorageProvider(BaseStorageProvider):
         self.region = settings.storage_s3_region
         self.access_key = settings.storage_s3_access_key
         self.secret_key = settings.storage_s3_secret_key
+        self.encryption = (settings.storage_s3_server_side_encryption or "").strip()
+        self.kms_key_id = (settings.storage_s3_kms_key_id or "").strip()
         if not (self.endpoint and self.bucket and self.access_key and self.secret_key):
             raise RuntimeError("S3 storage selected but S3 settings are not configured")
+        assert_encrypted_endpoint(self.endpoint, label="storage endpoint")
+        if not server_side_encryption_enabled():
+            raise TLSPolicyError(
+                "S3/MinIO storage requires storage_s3_server_side_encryption "
+                "(AES256 or aws:kms with a key id)"
+            )
 
-    def _sign(self, *, method: str, key: str, ttl_seconds: int) -> str:
+    def _encryption_headers(self) -> dict[str, str]:
+        """Server-side encryption headers applied to every stored object."""
+        headers = {"x-amz-server-side-encryption": self.encryption}
+        if self.encryption in ("aws:kms", "aws:kms:dsse") and self.kms_key_id:
+            headers["x-amz-server-side-encryption-aws-kms-key-id"] = self.kms_key_id
+        if self.encryption == "aws:kms:dsse":
+            headers["x-amz-server-side-encryption-customer-algorithm"] = "AES256"
+        return headers
+
+    def _sign(
+        self,
+        *,
+        method: str,
+        key: str,
+        ttl_seconds: int,
+        purpose: str = "",
+        max_ttl_seconds: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> tuple[str, dict[str, str]]:
+        """Return a SigV4 presigned URL plus the headers the client must echo."""
         host = urllib.parse.urlsplit(self.endpoint).netloc
         path = urllib.parse.quote(f"/{self.bucket}/{key.lstrip('/')}")
         now = datetime.now(UTC)
         amz_date = now.strftime("%Y%m%dT%H%M%SZ")
         date_stamp = now.strftime("%Y%m%d")
-        exp = int(ttl_seconds)
+        ceiling = settings.storage_presign_max_ttl_seconds
+        if purpose == "stream":
+            ceiling = min(ceiling, settings.playback_url_ttl_seconds)
+        if max_ttl_seconds is not None:
+            ceiling = min(ceiling, max_ttl_seconds)
+        try:
+            requested = int(ttl_seconds)
+        except (TypeError, ValueError):
+            requested = ceiling
+        exp = max(1, min(requested, ceiling))
         scope = f"{date_stamp}/{self.region}/s3/aws4_request"
 
         payload_hash = hashlib.sha256(b"").hexdigest()
-        canonical_headers = (
-            f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+        header_pairs = {
+            "host": host,
+            "x-amz-content-sha256": payload_hash,
+            "x-amz-date": amz_date,
+            **(extra_headers or {}),
+        }
+        canonical_headers = "".join(
+            f"{name}:{header_pairs[name]}\n" for name in sorted(header_pairs)
         )
-        signed_headers = "host;x-amz-content-sha256;x-amz-date"
+        signed_headers = ";".join(sorted(header_pairs))
         params = (
             f"X-Amz-Algorithm=AWS4-HMAC-SHA256"
             f"&X-Amz-Credential={urllib.parse.quote(f'{self.access_key}/{scope}', safe='')}"
@@ -140,15 +209,22 @@ class S3StorageProvider(BaseStorageProvider):
             k_signing, string_to_sign.encode(), hashlib.sha256
         ).hexdigest()
 
-        return (
-            f"{self.endpoint}/{self.bucket}/{urllib.parse.quote(key.lstrip('/'))}"
-            f"?{params}&X-Amz-Signature={signature}"
-        )
+        url = f"{self.endpoint}{path}?{params}&X-Amz-Signature={signature}"
+        wire_headers = {
+            name: value for name, value in header_pairs.items() if name != "host"
+        }
+        return url, wire_headers
 
     def build_access_url(
         self, *, storage_key: str, purpose: str, ttl_seconds: int
     ) -> str:
-        return self._sign(method="GET", key=storage_key, ttl_seconds=ttl_seconds)
+        url, _headers = self._sign(
+            method="GET",
+            key=storage_key,
+            ttl_seconds=ttl_seconds,
+            purpose=purpose,
+        )
+        return url
 
     async def put_bytes(
         self,
@@ -164,13 +240,17 @@ class S3StorageProvider(BaseStorageProvider):
         key = storage_key.lstrip("/")
         path = urllib.parse.quote(f"/{self.bucket}/{key}")
         scope = f"{date_stamp}/{self.region}/s3/aws4_request"
-        canonical_headers = (
-            f"content-type:{content_type}\n"
-            f"host:{host}\n"
-            f"x-amz-content-sha256:{payload_hash}\n"
-            f"x-amz-date:{amz_date}\n"
+        headers = {
+            "content-type": content_type,
+            "host": host,
+            "x-amz-content-sha256": payload_hash,
+            "x-amz-date": amz_date,
+            **self._encryption_headers(),
+        }
+        canonical_headers = "".join(
+            f"{name}:{headers[name]}\n" for name in sorted(headers)
         )
-        signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date"
+        signed_headers = ";".join(sorted(headers))
         params = (
             f"X-Amz-Algorithm=AWS4-HMAC-SHA256"
             f"&X-Amz-Credential={urllib.parse.quote(f'{self.access_key}/{scope}', safe='')}"
@@ -193,40 +273,31 @@ class S3StorageProvider(BaseStorageProvider):
         signature = hmac.new(
             k_signing, string_to_sign.encode(), hashlib.sha256
         ).hexdigest()
-        url = (
-            f"{self.endpoint}/{self.bucket}/{path}?{params}&X-Amz-Signature={signature}"
-        )
+        url = f"{self.endpoint}{path}?{params}&X-Amz-Signature={signature}"
 
+        sent_headers = {
+            name: value for name, value in headers.items() if name != "host"
+        }
         async with httpx.AsyncClient() as client:
-            resp = await client.put(
-                url,
-                content=data,
-                headers={
-                    "content-type": content_type,
-                    "x-amz-content-sha256": payload_hash,
-                    "x-amz-date": amz_date,
-                },
-            )
+            resp = await client.put(url, content=data, headers=sent_headers)
             if resp.status_code not in (200, 201, 204):
                 raise RuntimeError(f"S3 PUT failed: {resp.status_code} {resp.text}")
 
     async def read_bytes(self, storage_key: str) -> bytes:
-        url = self._sign(method="GET", key=storage_key, ttl_seconds=60)
+        url, headers = self._sign(
+            method="GET", key=storage_key, ttl_seconds=60, max_ttl_seconds=60
+        )
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=headers)
             resp.raise_for_status()
             return resp.content
 
     async def delete(self, storage_key: str) -> None:
-        url = self._sign(method="DELETE", key=storage_key, ttl_seconds=60)
+        url, headers = self._sign(
+            method="DELETE", key=storage_key, ttl_seconds=60, max_ttl_seconds=60
+        )
         async with httpx.AsyncClient() as client:
-            resp = await client.delete(
-                url,
-                headers={
-                    "x-amz-content-sha256": hashlib.sha256(b"").hexdigest(),
-                    "x-amz-date": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
-                },
-            )
+            resp = await client.delete(url, headers=headers)
             if resp.status_code not in (204, 200, 404):
                 raise RuntimeError(f"S3 DELETE failed: {resp.status_code} {resp.text}")
 

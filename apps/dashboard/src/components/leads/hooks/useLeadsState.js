@@ -3,6 +3,194 @@
 import { useState, useMemo, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 
+// ---------------------------------------------------------------------------
+// Imported lead identifiers
+// ---------------------------------------------------------------------------
+// Lead rows are no longer minted or parsed in the browser: the upload step posts
+// the file to the import pipeline, which assigns every lead a real UUID and a
+// vendor-safe external_key server-side.
+
+// The API speaks two error shapes: the contract envelope (``error.message``)
+// and FastAPI's own ``detail``, which is a list of per-field objects for a
+// 422. Collapsing both into one generic string is what made a rejected request
+// look like an unexplained failure, so pull the real reason out. Returns null
+// when the body carries nothing usable and the caller must supply a fallback.
+function readApiErrorMessage(body) {
+  const envelope = body?.error?.message || body?.message;
+  if (envelope) return envelope;
+
+  const detail = body?.detail;
+  if (typeof detail === "string" && detail) return detail;
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        const where = Array.isArray(item?.loc) ? item.loc.slice(1).join(".") : "";
+        const msg = item?.msg || "invalid value";
+        return where ? `${where}: ${msg}` : msg;
+      })
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join("; ");
+  }
+
+  return null;
+}
+
+function describeApiFailure(status, body) {
+  const message = readApiErrorMessage(body);
+  if (message) return message;
+
+  if (status === 422) return "The server rejected the request as invalid.";
+  if (status === 404) return "The server no longer has this lead list.";
+  if (status === 403) return "You do not have permission to run lists in VICIdial.";
+  if (status === 503) return "VICIdial is not configured on the server.";
+  return "Could not update the VICIdial run for this list.";
+}
+
+// The import pipeline returns a specific message for every rejection it raises
+// (bad mapping, empty file, oversized upload, wrong job state), so this only
+// has to cover the cases where no body came back at all.
+function describeImportFailure(status, body) {
+  const message = readApiErrorMessage(body);
+  if (message) return message;
+
+  if (status === 403) {
+    return "You do not have permission to import leads.";
+  }
+  if (status === 404) {
+    return "This import job no longer exists on the server. Start the import again.";
+  }
+  return "Could not reach the import service. Check that the backend is running and try again.";
+}
+
+// ---------------------------------------------------------------------------
+// Import wizard: column mapping vocabulary
+// ---------------------------------------------------------------------------
+// Mirrors the target fields the backend accepts (policies.SYSTEM_FIELDS). A
+// mapping entry naming anything outside this list is stored verbatim under the
+// lead's custom_fields, which is how IMPORT_CUSTOM_FIELD is honoured.
+const IMPORT_TARGET_FIELDS = [
+  ["phone", "Phone Number"],
+  ["first_name", "First Name"],
+  ["last_name", "Last Name"],
+  ["alt_phone", "Alternate Phone"],
+  ["email", "Email Address"],
+  ["state", "State"],
+  ["zip_code", "ZIP Code"],
+  ["date_of_birth", "Date of Birth (YYYY-MM-DD)"],
+  ["source", "Source"],
+  ["source_batch_id", "Source Batch ID"],
+];
+
+// UI-only selections. Neither is a legal backend target, so both are resolved
+// before the mapping is posted: the sentinel becomes the column's own name (a
+// custom field), and "" drops the column entirely.
+const IMPORT_CUSTOM_FIELD = "__custom__";
+const IMPORT_SKIP_COLUMN = "";
+
+// Headers that name the lead's primary phone outright. Anchored at the start so
+// "Alt Phone" is not mistaken for it.
+const IMPORT_PRIMARY_PHONE =
+  /^(phone|mobile|cell|contact|telephone|tel|phone_number|mobile_number|cell_number|contact_number)[_\s-]?(number|no|num)?\b/i;
+
+// Headers that name some *other* phone line (home/work/backup). These only take
+// the alternate slot once a column has claimed the primary one.
+const IMPORT_ALT_PHONE =
+  /^(alt|alternate|secondary|home|work|other|backup|second)[_\s-]?(phone|mobile|cell|tel)/i;
+
+const isPhoneHeader = (name) =>
+  IMPORT_PRIMARY_PHONE.test(name) || IMPORT_ALT_PHONE.test(name);
+
+// Ordered header patterns used to pre-fill the mapping table. The user can
+// change every assignment before validating, and the server re-derives every
+// value regardless - this only saves clicking, it never decides the outcome.
+// Each target is claimed once, so two lookalike columns cannot silently
+// overwrite each other.
+const IMPORT_COLUMN_GUESSES = [
+  [/e-?mail/i, "email"],
+  [/first|given/i, "first_name"],
+  [/last|family|surname/i, "last_name"],
+  [/dob|birth/i, "date_of_birth"],
+  [/zip|postal/i, "zip_code"],
+  [/state|province|region/i, "state"],
+  [/batch/i, "source_batch_id"],
+  [/source|channel|list/i, "source"],
+];
+
+function guessColumnMapping(columns) {
+  const mapping = {};
+  const claimed = new Set();
+
+  const claim = (column, target) => {
+    mapping[column.name] = target;
+    claimed.add(target);
+  };
+
+  const phoneCandidates = columns.filter((c) => c?.name && isPhoneHeader(c.name));
+
+  // An unambiguous primary header wins the phone slot. A file whose only
+  // phone-ish column is "Home Phone" still needs one, so the first candidate
+  // takes it when nothing else claimed it - otherwise extra phone columns
+  // become the alternate line rather than being dropped.
+  const primary = phoneCandidates.find((c) => IMPORT_PRIMARY_PHONE.test(c.name));
+  const fallback = phoneCandidates.find((c) => c.name !== primary?.name);
+  if (primary) {
+    claim(primary, "phone");
+  } else if (fallback) {
+    claim(fallback, "phone");
+  }
+
+  phoneCandidates.forEach((column) => {
+    if (mapping[column.name]) return;
+    claim(column, "alt_phone");
+  });
+
+  columns.forEach((column) => {
+    const name = column?.name;
+    if (!name || mapping[name]) return;
+    const guess = IMPORT_COLUMN_GUESSES.find(
+      ([pattern, target]) => pattern.test(name) && !claimed.has(target)
+    );
+    mapping[name] = guess ? guess[1] : IMPORT_CUSTOM_FIELD;
+    if (guess) claimed.add(guess[1]);
+  });
+
+  return mapping;
+}
+
+// Turn the UI selections into the mapping the backend validates: the custom
+// sentinel resolves to the column's own name, skipped columns are omitted.
+function buildMappingPayload(columnMapping) {
+  const payload = {};
+  Object.entries(columnMapping).forEach(([column, target]) => {
+    if (target === IMPORT_CUSTOM_FIELD) {
+      payload[column] = column;
+    } else if (target) {
+      payload[column] = target;
+    }
+  });
+  return payload;
+}
+
+// Legacy browser-only cache keys. Nothing reads them any more; they are cleared
+// once so a stale copy of imported rows cannot linger in the user's browser.
+const RETIRED_BATCH_KEYS = ["talkflow_lead_batches", "talkflow_deleted_batches"];
+
+// The registry speaks one dialect (LeadBatchDTO). This fills in the camelCase
+// aliases the table reads so every consumer sees one shape.
+function normalizeBatch(batch) {
+  return {
+    ...batch,
+    vicidialListId: batch.vicidialListId ?? batch.vicidial_list_id ?? null,
+    runCount: Number(batch.runCount ?? batch.vicidial_run_count ?? 0) || 0,
+    vicidialStatus: batch.vicidialStatus ?? batch.vicidial_status ?? "idle",
+    isActiveForVicidial: Boolean(
+      batch.isActiveForVicidial ?? batch.is_active_for_vicidial ?? false
+    ),
+  };
+}
+
 // Central state + route parsing for LeadsView with dynamic batches & pagination.
 export function useLeadsState(initialAction, onActionChange) {
   const viewMode = useMemo(() => {
@@ -21,29 +209,10 @@ export function useLeadsState(initialAction, onActionChange) {
     }
   };
 
-  // Helpers for local persistence
-  const getStoredBatches = () => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem("talkflow_lead_batches");
-      if (saved) return JSON.parse(saved);
-    } catch (err) {
-      // Fallback
-    }
-    return null;
-  };
-
-  const getDeletedBatchIds = () => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const saved = localStorage.getItem("talkflow_deleted_batches");
-      if (saved) return new Set(JSON.parse(saved));
-    } catch (err) {
-      // Fallback
-    }
-    return new Set();
-  };
-
+  // Imported lead lists are server state only. They used to be mirrored into
+  // localStorage, which meant the browser could show - and permanently hide -
+  // lists the server knew nothing about, and served rows the database never
+  // held. The LeadImportJob registry is the single source of truth.
   const getStoredSuppressionBatches = () => {
     if (typeof window === "undefined") return null;
     try {
@@ -66,20 +235,26 @@ export function useLeadsState(initialAction, onActionChange) {
     return [];
   };
 
-  // State datasets - initialize completely empty (no dummy data)
-  const [leads, setLeads] = useState([]);
-  const [batches, setBatches] = useState(() => {
-    const stored = getStoredBatches();
-    const deleted = getDeletedBatchIds();
-    if (stored && Array.isArray(stored)) {
-      return stored.filter((b) => !deleted.has(String(b.id)));
-    }
+  const getStoredCampaigns = () => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("talkflow_campaigns");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
     return [];
-  });
+  };
 
-  const [activeCampaigns, setActiveCampaigns] = useState([]);
+  // State datasets - initialize completely empty (no dummy data, no local cache)
+  const [leads, setLeads] = useState([]);
+  const [batches, setBatches] = useState([]);
+
+  const [activeCampaigns, setActiveCampaigns] = useState(() => getStoredCampaigns());
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [batchColumns, setBatchColumns] = useState([]);
+  // Registry-level failure (delete / campaign assign), surfaced in the table
+  // instead of swallowed - a silent failure used to leave the UI showing a list
+  // the server still had.
+  const [batchError, setBatchError] = useState(null);
 
   // Suppression State (No dummy data - only real imported & extracted DNC lists)
   const [suppressionList, setSuppressionList] = useState(getStoredSuppressionList);
@@ -102,70 +277,96 @@ export function useLeadsState(initialAction, onActionChange) {
   const [sortField, setSortField] = useState("createdAt");
   const [sortAsc, setSortAsc] = useState(false);
 
+  // Drop the retired browser-side batch caches once, so an old copy of
+  // imported rows (and the delete tombstones that used to hide real lists) does
+  // not sit in the browser indefinitely.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      RETIRED_BATCH_KEYS.forEach((key) => window.localStorage.removeItem(key));
+    } catch (err) {
+      // A blocked storage API must not break the registry.
+    }
+  }, []);
+
   // Load Active Campaigns for batch dropdown assignment
   useEffect(() => {
     async function loadCampaigns() {
+      const localCamps = getStoredCampaigns();
       try {
         const res = await apiFetch("/campaigns");
         if (res.ok) {
           const body = await res.json();
           if (body?.data && Array.isArray(body.data)) {
-            setActiveCampaigns(body.data);
+            const apiItems = body.data.map((c) => ({
+              id: String(c.id),
+              name: c.name,
+              status: c.status || "draft",
+              ...c,
+            }));
+            const map = {};
+            apiItems.forEach((c) => {
+              map[String(c.id)] = c;
+            });
+            localCamps.forEach((l) => {
+              if (l?.id) {
+                map[String(l.id)] = {
+                  ...(map[String(l.id)] || {}),
+                  ...l,
+                  status: l.status || map[String(l.id)]?.status || "draft",
+                };
+              }
+            });
+            const merged = Object.values(map);
+            setActiveCampaigns(merged);
+            return;
           }
         }
       } catch (err) {
         // Fallback
       }
+      if (localCamps.length > 0) {
+        setActiveCampaigns(localCamps);
+      }
     }
     loadCampaigns();
-  }, []);
+  }, [viewMode]);
 
-  // Load Lead Batches / Files Registry
+  // Load Lead Batches / Files Registry. Returns the merged registry so a caller
+  // that just created a job (the import wizard) can find its own entry without
+  // a second round trip.
   const loadBatches = async () => {
     try {
-      const deletedIds = getDeletedBatchIds();
       const res = await apiFetch("/leads/batches");
       if (res.ok) {
         const body = await res.json();
         if (body?.data && Array.isArray(body.data)) {
-          const validBackendBatches = body.data.filter((b) => !deletedIds.has(String(b.id)));
-          setBatches((prev) => {
-            const storedUserBatches = prev.filter(
-              (p) => p.id.startsWith("batch-") && !deletedIds.has(String(p.id))
-            );
-            const merged = [...validBackendBatches, ...storedUserBatches];
-            if (typeof window !== "undefined") {
-              localStorage.setItem("talkflow_lead_batches", JSON.stringify(merged));
-            }
-            return merged;
-          });
+          const merged = body.data.map(normalizeBatch);
+          setBatches(merged);
+          return merged;
         }
       }
     } catch (err) {
       // Fallback
     }
+    return [];
   };
 
   useEffect(() => {
     loadBatches();
   }, []);
 
-  const [parsedLeadsBatch, setParsedLeadsBatch] = useState([]);
-
   // Fetch real leads & suppression entries from backend API
   useEffect(() => {
     async function loadData() {
       try {
-        if (selectedBatch?.parsedLeads && selectedBatch.parsedLeads.length > 0) {
-          setLeads(selectedBatch.parsedLeads);
-          setTotalLeads(selectedBatch.parsedLeads.length);
-          setTotalPages(Math.ceil(selectedBatch.parsedLeads.length / pageSize));
-          return;
-        }
-
         const queryParams = new URLSearchParams({
           page: String(page),
-          page_size: String(pageSize),
+          // Query keys are the schema's camelCase aliases. FastAPI binds
+          // query params by alias only, so a snake_case key is not rejected -
+          // it is silently dropped and the endpoint answers with unfiltered,
+          // default-paged results.
+          pageSize: String(pageSize),
         });
         if (statusFilter && statusFilter !== "all") {
           queryParams.set("status", statusFilter);
@@ -173,8 +374,11 @@ export function useLeadsState(initialAction, onActionChange) {
         if (searchQuery.trim()) {
           queryParams.set("search", searchQuery.trim());
         }
-        if (selectedBatch?.id && !selectedBatch.id.startsWith("batch-")) {
-          queryParams.set("source", String(selectedBatch.id));
+        if (selectedBatch?.id) {
+          // Filter on the import job, not on the lead's free-text `source`.
+          // `source` is only populated when the CSV happened to map a source
+          // column, so filtering by it returned an empty list for most imports.
+          queryParams.set("importJobId", String(selectedBatch.id));
         }
 
         const leadsRes = await apiFetch(`/leads?${queryParams.toString()}`);
@@ -246,10 +450,14 @@ export function useLeadsState(initialAction, onActionChange) {
     const dncBatchesMap = {};
     const dncEntries = [];
 
-    // 1. Scan lead batches (including parsedLeads from imports like LIST_1011_20260922-164919)
+    // 1. Scan lead batches (including parsedLeads from imports like LIST_1011.csv)
     batches.forEach((batch) => {
-      const listName = batch.fileName || batch.file_name || batch.name || batch.id;
-      const batchId = `supp-batch-${listName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+      const rawFile = batch.fileName || batch.file_name || batch.name || batch.id;
+      const stem = String(rawFile).replace(/\.csv$/i, "");
+      const suppressionListName = stem.toLowerCase().endsWith("dnc suppression")
+        ? stem
+        : `${stem} DNC Suppression`;
+      const batchId = `supp-batch-${suppressionListName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
       const batchCols = batch.columns && Array.isArray(batch.columns) && batch.columns.length > 0
         ? batch.columns
         : ["phone", "first_name", "last_name", "status", "reason", "added_at"];
@@ -274,8 +482,8 @@ export function useLeadsState(initialAction, onActionChange) {
           if (!dncBatchesMap[batchId]) {
             dncBatchesMap[batchId] = {
               id: batchId,
-              name: listName,
-              source: listName,
+              name: suppressionListName,
+              source: suppressionListName,
               totalCount: 0,
               columns: batchCols,
               createdAt: batch.createdAt || new Date().toISOString(),
@@ -283,14 +491,14 @@ export function useLeadsState(initialAction, onActionChange) {
             };
           }
 
-          if (!dncEntries.some((e) => e.phone === l.phone && e.source === listName)) {
+          if (!dncEntries.some((e) => e.phone === l.phone && e.source === suppressionListName)) {
             dncBatchesMap[batchId].totalCount += 1;
             dncEntries.push({
               id: `dnc-${l.id || Math.random()}-${batchId}`,
               phone: l.phone,
               reason: l.reason || "Lead Import DNC",
               addedBy: "System (Lead Auto-Filter)",
-              source: listName,
+              source: suppressionListName,
               addedAt: batch.createdAt || new Date().toISOString(),
               status: "Suppressed",
               batchId: batchId,
@@ -394,40 +602,27 @@ export function useLeadsState(initialAction, onActionChange) {
       setBatchColumns([]);
     }
 
-    if (batch?.parsedLeads && Array.isArray(batch.parsedLeads) && batch.parsedLeads.length > 0) {
-      setLeads(batch.parsedLeads);
-      setTotalLeads(batch.parsedLeads.length);
-      setTotalPages(Math.ceil(batch.parsedLeads.length / pageSize));
-    } else if (leads.length === 0) {
-      setLeads([]);
-      setTotalLeads(0);
-      setTotalPages(1);
-    }
-
     setPage(1);
     navigateToAction("list");
   };
 
+  // Delete a list and every lead it committed. The server owns the outcome, so
+  // the row is only removed from the table once the request succeeds - the old
+  // client-side tombstone hid the list forever even when the DELETE failed.
   const handleDeleteBatch = async (batchId) => {
-    if (typeof window !== "undefined") {
-      try {
-        const deleted = getDeletedBatchIds();
-        deleted.add(String(batchId));
-        localStorage.setItem("talkflow_deleted_batches", JSON.stringify(Array.from(deleted)));
-      } catch (err) {
-        // Fallback
-      }
+    setBatchError(null);
+
+    const res = await apiFetch(`/leads/batches/${batchId}`, { method: "DELETE" });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setBatchError(describeApiFailure(res.status, body));
+      return false;
     }
 
-    setBatches((prev) => {
-      const updated = prev.filter((b) => b.id !== batchId);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("talkflow_lead_batches", JSON.stringify(updated));
-      }
-      return updated;
-    });
+    setBatches((prev) => prev.filter((b) => String(b.id) !== String(batchId)));
 
-    if (selectedBatch?.id === batchId) {
+    if (String(selectedBatch?.id) === String(batchId)) {
       setSelectedBatch(null);
       setBatchColumns([]);
       setLeads([]);
@@ -435,25 +630,20 @@ export function useLeadsState(initialAction, onActionChange) {
       setTotalPages(1);
     }
 
-    try {
-      await apiFetch(`/leads/batches/${batchId}`, {
-        method: "DELETE",
-      });
-    } catch (err) {
-      // Best effort deletion
-    }
+    return true;
   };
 
   const handleResetImportWizard = () => {
     setImportStep(1);
     setUploadedFileName(null);
-    setCustomListName("");
-    setImportProgress(0);
     setImportError(null);
     setDetectedCount(0);
-    setCsvHeaders([]);
-    setSampleRow({});
-    setParsedLeadsBatch([]);
+    setImportJobId(null);
+    setImportColumns([]);
+    setColumnMapping({});
+    setImportValidation(null);
+    setImportResult(null);
+    setImportCampaignId("");
     navigateToAction("import");
   };
 
@@ -491,33 +681,93 @@ export function useLeadsState(initialAction, onActionChange) {
     }
   };
 
+  // Assign a campaign to a whole imported list. Optimistic for responsiveness,
+  // then reconciled against the server - which is now the only place the
+  // assignment is stored.
   const handleAssignCampaign = async (batchId, campaignId) => {
-    setBatches((prev) => {
-      const updated = prev.map((b) =>
-        b.id === batchId ? { ...b, campaignId, campaign_id: campaignId } : b
-      );
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("talkflow_lead_batches", JSON.stringify(updated));
-        } catch (err) {}
-      }
-      return updated;
-    });
+    setBatchError(null);
 
-    try {
-      await apiFetch(`/leads/batches/${batchId}/campaign`, {
-        method: "PATCH",
-        body: JSON.stringify({ campaign_id: campaignId }),
-      });
-      loadBatches();
-    } catch (err) {
-      // Best effort
+    setBatches((prev) =>
+      prev.map((b) =>
+        String(b.id) === String(batchId)
+          ? normalizeBatch({ ...b, campaignId, campaign_id: campaignId })
+          : b
+      )
+    );
+
+    const res = await apiFetch(`/leads/batches/${batchId}/campaign`, {
+      method: "PATCH",
+      body: JSON.stringify({ campaign_id: campaignId }),
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setBatchError(describeApiFailure(res.status, body));
     }
+
+    // Re-read either way: on success this is the confirmation, on failure it
+    // rolls the optimistic row back to what the server actually has.
+    await loadBatches();
   };
 
   const handleStatusFilterChange = (st) => {
     setStatusFilter(st);
     setPage(1);
+  };
+
+  // Start / stop the VICIdial run for one imported list. The dialer push is a
+  // backend call (the browser cannot reach non_agent_api.php), so the toggle
+  // stays disabled until the server confirms - an optimistic flip that later
+  // 502s would show a list as "running" that the dialer never received.
+  const [vicidialBusyBatchId, setVicidialBusyBatchId] = useState(null);
+  const [vicidialError, setVicidialError] = useState(null);
+
+  const handleToggleVicidialRun = async (batchId, activeState) => {
+    if (vicidialBusyBatchId) return null;
+
+    setVicidialBusyBatchId(batchId);
+    setVicidialError(null);
+
+    try {
+      const res = await apiFetch(`/leads/batches/${batchId}/vicidial-run`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_active: Boolean(activeState) }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setVicidialError(describeApiFailure(res.status, body));
+        return null;
+      }
+
+      // The DTO is camelCase on the wire; reading snake_case here silently
+      // yielded undefined for every field, so the run state on screen never
+      // reflected what the dialer was told.
+      const data = body?.data;
+      const applyRunState = (b) =>
+        normalizeBatch({
+          ...b,
+          vicidialListId: data?.vicidialListId ?? b.vicidialListId,
+          vicidial_run_count: data?.vicidialRunCount ?? b.runCount,
+          vicidial_status: data?.vicidialStatus ?? b.vicidialStatus,
+          is_active_for_vicidial: data?.isActiveForVicidial ?? activeState,
+        });
+
+      setBatches((prev) =>
+        prev.map((b) => (String(b.id) === String(batchId) ? applyRunState(b) : b))
+      );
+
+      if (String(selectedBatch?.id) === String(batchId)) {
+        setSelectedBatch((prev) => (prev ? applyRunState(prev) : prev));
+      }
+
+      return data;
+    } catch (err) {
+      setVicidialError("Network error while updating the VICIdial run.");
+      return null;
+    } finally {
+      setVicidialBusyBatchId(null);
+    }
   };
 
   const handleSearchChange = (q) => {
@@ -548,248 +798,139 @@ export function useLeadsState(initialAction, onActionChange) {
   const [newStatus, setNewStatus] = useState("New");
   const [newState, setNewState] = useState("CA");
 
-  // Import Wizard State & Validation
+  // Import Wizard State
+  // The wizard is a thin driver over the backend pipeline: the upload parks a
+  // LeadImportJob, the mapping step classifies every row, the commit writes the
+  // leads. Only the job id and the server's own answers are held here - the
+  // browser never parses or stores lead rows.
   const [importStep, setImportStep] = useState(1);
   const [uploadedFileName, setUploadedFileName] = useState(null);
-  const [customListName, setCustomListName] = useState("");
-  const [importProgress, setImportProgress] = useState(0);
   const [importError, setImportError] = useState(null);
   const [detectedCount, setDetectedCount] = useState(0);
-  const [csvHeaders, setCsvHeaders] = useState([]);
-  const [sampleRow, setSampleRow] = useState({});
+  const [importJobId, setImportJobId] = useState(null);
+  const [importColumns, setImportColumns] = useState([]);
+  const [columnMapping, setColumnMapping] = useState({});
+  const [importValidation, setImportValidation] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importBusy, setImportBusy] = useState(null);
+  const [importCampaignId, setImportCampaignId] = useState("");
 
-  const handleFileUpload = (e) => {
+  // STEP 1-2: hand the file to the backend. It parses the CSV, infers the
+  // columns, and parks a LeadImportJob in `mapping`; nothing is written to the
+  // leads table yet, and no rows are held in the browser.
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
+    // Clear the input so choosing the same file again re-triggers the change.
+    e.target.value = "";
     if (!file) return;
 
     setImportError(null);
-    setUploadedFileName(file.name);
-    setCustomListName(file.name.replace(/\.[^/.]+$/, ""));
+    setImportValidation(null);
+    setImportResult(null);
+    setImportBusy("upload");
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target.result;
-        const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-        if (lines.length < 2) {
-          setImportError("The uploaded CSV file is empty or missing data rows.");
-          return;
-        }
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-        let delimiter = ",";
-        if (lines[0].includes("\t")) {
-          delimiter = "\t";
-        } else if (lines[0].includes(";")) {
-          delimiter = ";";
-        } else if (!lines[0].includes(",") && /\s{2,}|\s+/.test(lines[0])) {
-          delimiter = /\s+/;
-        }
+      const res = await apiFetch("/leads/import", { method: "POST", body: formData });
+      const body = await res.json().catch(() => ({}));
 
-        const splitLine = (line) => {
-          if (typeof delimiter === "string") {
-            return line.split(delimiter).map((v) => v.trim().replace(/^"|"$/g, ""));
-          }
-          return line.trim().split(delimiter).map((v) => v.trim().replace(/^"|"$/g, ""));
-        };
-
-        const headers = splitLine(lines[0]);
-
-        let phoneIdx = headers.findIndex((h) => !/code|dial_code|country/i.test(h) && /phone_number|mobile_number|cell_number|phone|mobile|cell|contact|tele|number/i.test(h));
-        if (phoneIdx === -1) {
-          phoneIdx = headers.findIndex((h) => /phone|mobile|cell|contact|tele|number|num/i.test(h));
-        }
-        if (phoneIdx === -1) {
-          const sampleVals = splitLine(lines[1] || "");
-          phoneIdx = sampleVals.findIndex((v) => /\d{5,}/.test(String(v)));
-          if (phoneIdx === -1) phoneIdx = 0;
-        }
-
-        const rowCount = lines.length - 1;
-        setDetectedCount(rowCount);
-        setCsvHeaders(headers);
-
-        const sampleValues = splitLine(lines[1]);
-        const sampleObj = {};
-        headers.forEach((h, idx) => {
-          sampleObj[h] = sampleValues[idx] || "";
-        });
-        setSampleRow(sampleObj);
-
-        // Parse rows into parsedLeadsBatch
-        const parsedRows = [];
-        const firstIdx = headers.findIndex((h) => /first/i.test(h));
-        const lastIdx = headers.findIndex((h) => /last/i.test(h));
-        const emailIdx = headers.findIndex((h) => /mail/i.test(h));
-        const stateIdx = headers.findIndex((h) => /state|province/i.test(h));
-        const statusIdx = headers.findIndex((h) => /^status$|^dnc$|^suppressed$/i.test(h));
-        const dncIdx = headers.findIndex((h) => /^dnc$|^suppressed$/i.test(h));
-
-        for (let i = 1; i < lines.length && i <= 2000; i++) {
-          const values = splitLine(lines[i]);
-          if (values.length === 0) continue;
-          const rowObj = {};
-          headers.forEach((h, idx) => {
-            rowObj[h] = values[idx] !== undefined ? values[idx] : "";
-          });
-
-          const phoneVal = values[phoneIdx] || values[0] || "—";
-          const firstVal = (firstIdx !== -1 ? values[firstIdx] : "") || `Lead #${i}`;
-          const lastVal = (lastIdx !== -1 ? values[lastIdx] : "") || "";
-          const emailVal = (emailIdx !== -1 ? values[emailIdx] : "") || "—";
-          const stateVal = (stateIdx !== -1 ? values[stateIdx] : "") || "US";
-          let rawStatus = (statusIdx !== -1 ? values[statusIdx] : "") || "New";
-
-          // DNC Check inside CSV row
-          const dncVal = (dncIdx !== -1 ? values[dncIdx] : "").toString().toLowerCase();
-          const rowStr = values.join(" ").toLowerCase();
-          if (
-            dncVal === "true" ||
-            dncVal === "yes" ||
-            dncVal === "1" ||
-            dncVal === "dnc" ||
-            rowStr.includes("dnc") ||
-            rowStr.includes("do not call") ||
-            rowStr.includes("opt-out") ||
-            rowStr.includes("suppressed")
-          ) {
-            rawStatus = "DNC";
-            rowObj.dnc = true;
-            rowObj.status = "DNC";
-          }
-
-          parsedRows.push({
-            id: values[0] || `LEAD-${1000 + i}`,
-            firstName: firstVal,
-            lastName: lastVal,
-            phone: phoneVal,
-            email: emailVal,
-            state: stateVal,
-            campaign: customListName || file.name,
-            score: 80,
-            status: rawStatus ? (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()) : "New",
-            createdAt: new Date().toLocaleDateString(),
-            lastContacted: "—",
-            customFields: rowObj,
-          });
-        }
-        setParsedLeadsBatch(parsedRows);
-
-        setImportStep(2);
-      } catch (err) {
-        setImportError("Failed to parse CSV file. Please ensure it is a valid UTF-8 CSV file.");
+      if (!res.ok) {
+        setImportError(describeImportFailure(res.status, body));
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      const data = body?.data;
+      const columns = Array.isArray(data?.columns) ? data.columns : [];
+
+      setImportJobId(data?.jobId ? String(data.jobId) : null);
+      setUploadedFileName(data?.fileName || file.name);
+      setDetectedCount(Number(data?.totalRows) || 0);
+      setImportColumns(columns);
+      setColumnMapping(guessColumnMapping(columns));
+      setImportStep(2);
+    } catch (err) {
+      setImportError("Network error while uploading the file. Please try again.");
+    } finally {
+      setImportBusy(null);
+    }
   };
 
-  const handleStartImport = () => {
-    setImportStep(3);
-    setImportProgress(25);
-    setTimeout(() => setImportProgress(65), 500);
-    setTimeout(() => {
-      setImportProgress(100);
+  const handleColumnMappingChange = (column, target) => {
+    setColumnMapping((prev) => ({ ...prev, [column]: target }));
+    // Any edit invalidates the last classification, so the commit button must
+    // not stay enabled against counts the server produced for a stale mapping.
+    setImportValidation(null);
+  };
 
-      const listTitle = customListName.trim() || uploadedFileName || "Imported Lead List";
-      const count = detectedCount || (parsedLeadsBatch.length > 0 ? parsedLeadsBatch.length : 500);
+  // STEP 3-4: save the mapping. This is also the DNC scrub: the server
+  // classifies every row against the suppression register and the existing
+  // leads, drops the losers, and returns the counts the commit will act on.
+  const handleValidateMapping = async () => {
+    if (!importJobId || importBusy) return;
 
-      const newBatchObj = {
-        id: `batch-${Date.now()}`,
-        fileName: listTitle,
-        file_name: listTitle,
-        totalRows: count,
-        total_rows: count,
-        importedRows: count,
-        imported_rows: count,
-        columns: csvHeaders.length > 0 ? csvHeaders : ["phone", "first_name", "last_name", "state"],
-        parsedLeads: parsedLeadsBatch,
-        campaignId: null,
-        campaignName: "Unassigned",
-        createdAt: new Date().toISOString(),
-      };
+    setImportError(null);
+    setImportBusy("mapping");
 
-      setBatches((prev) => {
-        const updated = [newBatchObj, ...prev];
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem("talkflow_lead_batches", JSON.stringify(updated));
-          } catch (err) {
-            // Fallback
-          }
-        }
-        return updated;
+    try {
+      const res = await apiFetch(`/leads/import/${importJobId}/mapping`, {
+        method: "POST",
+        body: JSON.stringify({
+          mapping: buildMappingPayload(columnMapping),
+          ...(importCampaignId ? { campaignId: importCampaignId } : {}),
+        }),
       });
+      const body = await res.json().catch(() => ({}));
 
-      if (parsedLeadsBatch.length > 0) {
-        setLeads(parsedLeadsBatch);
-        setTotalLeads(parsedLeadsBatch.length);
-        setTotalPages(Math.ceil(parsedLeadsBatch.length / pageSize));
+      if (!res.ok) {
+        setImportError(describeImportFailure(res.status, body));
+        return;
       }
-      setSelectedBatch(newBatchObj);
-      setBatchColumns(newBatchObj.columns);
 
-      // Extract DNC entries for this newly imported file with the exact SAME name & dynamic columns
-      if (parsedLeadsBatch && parsedLeadsBatch.length > 0) {
-        const dncLeads = parsedLeadsBatch.filter((l) => {
-          const st = (l.status || "").toLowerCase();
-          const dncVal = String(l.customFields?.dnc || l.customFields?.suppressed || "").toLowerCase();
-          return st.includes("dnc") || st.includes("suppress") || st.includes("opt-out") || st.includes("opt_out") || dncVal === "true" || dncVal === "yes" || dncVal === "1";
-        });
+      setImportValidation(body?.data?.validation ?? null);
+    } catch (err) {
+      setImportError("Network error while validating the column mapping.");
+    } finally {
+      setImportBusy(null);
+    }
+  };
 
-        if (dncLeads.length > 0) {
-          const dncBatchId = `supp-batch-${listTitle.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
-          const extractedEntries = dncLeads.map((l, idx) => ({
-            id: `dnc-auto-${Date.now()}-${idx}`,
-            phone: l.phone,
-            reason: l.reason || "Lead Import DNC",
-            addedBy: "System (Lead Auto-Filter)",
-            source: listTitle,
-            addedAt: new Date().toISOString(),
-            status: "Suppressed",
-            batchId: dncBatchId,
-            customFields: l.customFields || l,
-          }));
+  // STEP 5: commit. The job is already validated, so this writes the surviving
+  // rows in 1000-row chunks and returns the real imported count.
+  const handleStartImport = async () => {
+    if (!importJobId || importBusy) return;
 
-          setSuppressionList((prev) => {
-            const existingKeys = new Set(prev.map((p) => `${p.phone}-${p.source}`));
-            const toAdd = extractedEntries.filter((e) => !existingKeys.has(`${e.phone}-${e.source}`));
-            const updated = [...prev, ...toAdd];
-            if (typeof window !== "undefined") {
-              try {
-                localStorage.setItem("talkflow_suppression_entries", JSON.stringify(updated));
-              } catch (e) {
-                // Fallback
-              }
-            }
-            return updated;
-          });
+    setImportError(null);
+    setImportStep(3);
+    setImportBusy("commit");
 
-          const newSuppBatch = {
-            id: dncBatchId,
-            name: listTitle,
-            source: listTitle,
-            columns: csvHeaders.length > 0 ? csvHeaders : ["phone", "first_name", "last_name", "status"],
-            totalCount: extractedEntries.length,
-            createdAt: new Date().toISOString(),
-            type: "auto_extracted",
-          };
+    try {
+      const res = await apiFetch(`/leads/import/${importJobId}/commit`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => ({}));
 
-          setSuppressionBatches((prev) => {
-            const map = {};
-            prev.forEach((b) => { map[b.id] = b; });
-            map[newSuppBatch.id] = newSuppBatch;
-            const updated = Object.values(map);
-            if (typeof window !== "undefined") {
-              try {
-                localStorage.setItem("talkflow_suppression_batches", JSON.stringify(updated));
-              } catch (e) {
-                // Fallback
-              }
-            }
-            return updated;
-          });
-        }
+      if (!res.ok || !body?.data) {
+        setImportError(describeImportFailure(res.status, body));
+        return;
       }
-    }, 1200);
+
+      setImportResult(body.data);
+
+      // Pull the job from the registry so the new list appears in its canonical
+      // LeadBatchDTO shape, then select it so "View Lead List" lands on it.
+      const merged = await loadBatches();
+      const created = merged.find((b) => String(b.id) === String(importJobId));
+      if (created) {
+        setSelectedBatch(created);
+        setBatchColumns(Array.isArray(created.columns) ? created.columns : []);
+      }
+    } catch (err) {
+      setImportError("Network error while committing the import. The job is saved - retry from the lead lists registry.");
+    } finally {
+      setImportBusy(null);
+    }
   };
 
   // Import Bulk Suppression File Handler
@@ -928,7 +1069,9 @@ export function useLeadsState(initialAction, onActionChange) {
 
   // View imported batch after completion
   const handleViewImportedList = () => {
-    navigateToAction("all");
+    // The commit selects the new job, so "View Lead List" opens that list. Fall
+    // back to the registry when there is nothing selected (e.g. after a reset).
+    navigateToAction(selectedBatch ? "list" : "all");
   };
 
   // Dynamic Summary Metrics based on lead statuses & dataset
@@ -1074,6 +1217,10 @@ export function useLeadsState(initialAction, onActionChange) {
     batchColumns,
     handleSelectBatch,
     handleAssignCampaign,
+    handleToggleVicidialRun,
+    vicidialBusyBatchId,
+    vicidialError,
+    batchError,
     suppressionList,
     suppressionBatches,
     selectedSuppressionBatch,
@@ -1115,13 +1262,19 @@ export function useLeadsState(initialAction, onActionChange) {
     importStep,
     setImportStep,
     uploadedFileName,
-    customListName,
-    setCustomListName,
-    importProgress,
     importError,
+    importBusy,
     detectedCount,
-    csvHeaders,
-    sampleRow,
+    importColumns,
+    columnMapping,
+    importValidation,
+    importResult,
+    importCampaignId,
+    setImportCampaignId,
+    activeCampaigns,
+    importTargetFields: IMPORT_TARGET_FIELDS,
+    importCustomField: IMPORT_CUSTOM_FIELD,
+    importSkipColumn: IMPORT_SKIP_COLUMN,
     totalCount,
     qualifiedCount,
     convertedCount,
@@ -1132,6 +1285,8 @@ export function useLeadsState(initialAction, onActionChange) {
     handleSort,
     handleAddLead,
     handleFileUpload,
+    handleColumnMappingChange,
+    handleValidateMapping,
     handleStartImport,
     handleViewImportedList,
     handleDeleteBatch,

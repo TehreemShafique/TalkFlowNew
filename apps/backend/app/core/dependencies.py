@@ -21,7 +21,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.context import UserContext
 from app.core.database import get_db
-from app.core.permissions import permissions_for_roles
+from app.core.permissions import has_permission, permissions_for_roles
 from app.core.redis import is_token_blacklisted
 from app.core.security import decode_access_token
 from app.packages.contracts.enums import UserStatus
@@ -121,6 +121,7 @@ async def require_auth(
         role=role,
         permissions=permissions,
         issued_at=payload.get("iat"),
+        session_token_id=jti,
     )
 
 
@@ -133,7 +134,9 @@ def require_permissions(required_permissions: list[str]):
     async def checker(
         user: Annotated[UserContext, Depends(require_auth)],
     ) -> UserContext:
-        missing = [p for p in required_permissions if p not in user.permissions]
+        missing = [
+            p for p in required_permissions if not has_permission(user.permissions, p)
+        ]
         if missing:
             raise PermissionDeniedError(
                 "auth.permission_denied",
@@ -142,3 +145,27 @@ def require_permissions(required_permissions: list[str]):
         return user
 
     return checker
+
+
+class RequirePermission:
+    """Class-based permission gate (Rule R4) for sensitive routes.
+
+    Usage: ``user: Annotated[UserContext, Depends(RequirePermission(PERM))]``.
+    Legacy permission spellings are accepted through
+    ``permissions.has_permission`` so grants minted before the RP-27 rename
+    keep resolving.
+    """
+
+    def __init__(self, permission: str) -> None:
+        self.permission = permission
+
+    async def __call__(
+        self,
+        user: Annotated[UserContext, Depends(require_auth)],
+    ) -> UserContext:
+        if not has_permission(user.permissions, self.permission):
+            raise PermissionDeniedError(
+                "auth.permission_denied",
+                message=f"Missing permission(s): {self.permission}.",
+            )
+        return user

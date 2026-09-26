@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Annotated
-from fastapi import APIRouter, Depends, Query, status
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.context import UserContext

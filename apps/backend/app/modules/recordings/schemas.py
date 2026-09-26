@@ -6,18 +6,19 @@ and the envelope match the dashboard's frozen frontend contract
 duration, consent, qualification status/details, verifier, QA score/status,
 and a playable audioUrl.  Never a raw storage path (Rule R7).
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import Field
 
-from app.packages.contracts.base import APIBaseModel, camelize
+from app.packages.contracts.base import APIBaseModel
 from app.packages.contracts.enums import RecordingStatus
 
-_UTC = timezone.utc
+_UTC = UTC
 
 
 def parse_datetime(value: str | datetime | None) -> datetime | None:
@@ -25,7 +26,7 @@ def parse_datetime(value: str | datetime | None) -> datetime | None:
         return None
     if isinstance(value, datetime):
         return value
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
 
 
 class RecordingDTO(APIBaseModel):

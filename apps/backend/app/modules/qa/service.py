@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import write_audit
@@ -24,7 +24,7 @@ from app.modules.qa.schemas import (
 )
 from app.packages.contracts.base import DataResponse
 from app.packages.contracts.enums import AuditResult
-from app.packages.db.models import QAReview, QAReviewScore, QAScorecard, QACriterion
+from app.packages.db.models import QAReview, QAReviewScore
 
 
 async def get_active_scorecard(session: AsyncSession) -> DataResponse[QAScorecardDTO]:

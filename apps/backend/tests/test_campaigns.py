@@ -22,20 +22,55 @@ from app.modules.campaigns.policies import (
     can_start_campaign,
     can_stop,
 )
-from app.packages.contracts.enums import CampaignStatus
-from app.packages.db.models import calls_table, campaigns_table
+from app.packages.contracts.enums import CampaignStatus, ScriptStatus
+from app.packages.db.models import (
+    Script,
+    ScriptVersion,
+    calls_table,
+    campaigns_table,
+)
 
 
-def _complete_payload(name: str = "Live Campaign") -> dict:
+def _complete_payload(
+    name: str = "Live Campaign", active_script_version_id: uuid.UUID | None = None
+) -> dict:
+    if active_script_version_id is None:
+        raise AssertionError(
+            "campaigns.active_script_version_id is a real FK to script_versions; "
+            "seed one with _seed_script_version() and pass its id"
+        )
     return {
         "name": name,
-        "activeScriptVersionId": str(uuid.uuid4()),
+        "activeScriptVersionId": str(active_script_version_id),
         "ruleSetVersionId": str(uuid.uuid4()),
         "complianceProfileId": str(uuid.uuid4()),
         "closerInGroup": "Licensed_QA_Pool",
         "vicidialCampaignId": "VICI_CAMP_01",
         "vicidialListIds": ["1001", "1002"],
+        "dialing": {"callerIds": ["18005550100", "18005550101"]},
     }
+
+
+async def _seed_script_version(seeded) -> uuid.UUID:
+    """Insert a real ``scripts`` + ``script_versions`` row and return its id.
+
+    The start guard (``can_start_campaign``) rejects a version whose status is
+    neither ``approved`` nor ``active``, so the row must be seeded as approved.
+    """
+    script_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+    async with seeded["factory"]() as db:
+        db.add(Script(id=script_id, name=f"Campaign Script {script_id.hex[:8]}"))
+        db.add(
+            ScriptVersion(
+                id=version_id,
+                script_id=script_id,
+                version=1,
+                status=ScriptStatus.APPROVED.value,
+            )
+        )
+        await db.commit()
+    return version_id
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +162,7 @@ async def test_start_reports_every_gap_at_once(client, seeded):
 
 async def test_start_then_pause_lifecycle(client, seeded):
     created = await client.post(
-        "/campaigns", headers=seeded["headers"], json=_complete_payload()
+        "/campaigns", headers=seeded["headers"],         json=_complete_payload(active_script_version_id=await _seed_script_version(seeded))
     )
     campaign_id = created.json()["data"]["id"]
 
@@ -149,7 +184,11 @@ async def test_start_then_pause_lifecycle(client, seeded):
 
 async def test_pause_requires_active_state(client, seeded):
     created = await client.post(
-        "/campaigns", headers=seeded["headers"], json=_complete_payload("Draft Only")
+        "/campaigns",
+        headers=seeded["headers"],
+        json=_complete_payload(
+            "Draft Only", await _seed_script_version(seeded)
+        ),
     )
     campaign_id = created.json()["data"]["id"]
 
@@ -162,7 +201,7 @@ async def test_pause_requires_active_state(client, seeded):
 
 async def test_start_requires_campaign_start_permission(client, seeded):
     created = await client.post(
-        "/campaigns", headers=seeded["headers"], json=_complete_payload("Perm Test")
+        "/campaigns", headers=seeded["headers"],         json=_complete_payload("Perm Test", await _seed_script_version(seeded))
     )
     campaign_id = created.json()["data"]["id"]
 
@@ -236,7 +275,7 @@ async def _insert_calls(seeded, rows: list[dict]) -> None:
 
 async def test_start_pause_stop_lifecycle(client, seeded):
     created = await client.post(
-        "/campaigns", headers=seeded["headers"], json=_complete_payload("Stop Me")
+        "/campaigns", headers=seeded["headers"],         json=_complete_payload("Stop Me", await _seed_script_version(seeded))
     )
     campaign_id = created.json()["data"]["id"]
 
@@ -263,7 +302,7 @@ async def test_stop_active_campaign_directly(client, seeded):
     created = await client.post(
         "/campaigns",
         headers=seeded["headers"],
-        json=_complete_payload("Active To Stop"),
+        json=_complete_payload("Active To Stop", await _seed_script_version(seeded)),
     )
     campaign_id = created.json()["data"]["id"]
 
@@ -292,7 +331,7 @@ async def test_stop_requires_campaign_start_permission(client, seeded):
     created = await client.post(
         "/campaigns",
         headers=seeded["headers"],
-        json=_complete_payload("Stop Perm"),
+        json=_complete_payload("Stop Perm", await _seed_script_version(seeded)),
     )
     campaign_id = created.json()["data"]["id"]
     await client.post(f"/campaigns/{campaign_id}/start", headers=seeded["headers"])
@@ -313,7 +352,7 @@ async def test_stats_counts_today_only_for_this_campaign(client, seeded):
     created = await client.post(
         "/campaigns",
         headers=seeded["headers"],
-        json=_complete_payload("Stats Campaign"),
+        json=_complete_payload("Stats Campaign", await _seed_script_version(seeded)),
     )
     campaign_id = uuid.UUID(created.json()["data"]["id"])
     other_id = uuid.uuid4()

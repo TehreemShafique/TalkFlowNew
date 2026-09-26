@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.core.config import settings
-from app.packages.db import models  # noqa: F401  (registers ORM tables)
+from app.packages.db import models
 from app.packages.db.base import Base
 
 config = context.config
@@ -15,6 +15,12 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# The declarative mappings and the `_shared` read-only projections sit on two
+# different MetaData objects, and CallRecording's string FKs can only resolve
+# once both are visible in one metadata.  Without this, autogenerate aborts with
+# NoReferencedTableError and schema drift goes unnoticed.
+models.merge_shared_metadata(Base.metadata)
 
 target_metadata = Base.metadata
 

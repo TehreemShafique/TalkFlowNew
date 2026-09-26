@@ -15,7 +15,11 @@ from typing import Any
 from pydantic import ConfigDict, Field
 
 from app.packages.contracts.base import APIBaseModel
-from app.packages.contracts.enums import ImportJobStatus, LeadStatus
+from app.packages.contracts.enums import (
+    ImportJobStatus,
+    LeadStatus,
+    VicidialRunStatus,
+)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_IMPORT_ROWS = 25_000
@@ -112,6 +116,7 @@ class LeadListQuery(APIBaseModel):
     suppressed: bool | None = None
     campaign_id: uuid.UUID | None = None
     source: str | None = Field(default=None, max_length=120)
+    import_job_id: uuid.UUID | None = None
     sort: str | None = None
     order: str | None = None
 
@@ -128,10 +133,47 @@ class LeadBatchDTO(APIBaseModel):
     campaign_id: uuid.UUID | None = None
     campaign_name: str | None = None
     created_at: datetime
+    # VICIdial run control (dashboard lead-list registry). ``vicidial_list_id``
+    # is None until the list has been assigned a dialer list.
+    vicidial_list_id: str | None = None
+    vicidial_run_count: int = 0
+    vicidial_status: VicidialRunStatus = VicidialRunStatus.IDLE
+    is_active_for_vicidial: bool = False
+    vicidial_started_at: datetime | None = None
+    vicidial_stopped_at: datetime | None = None
 
 
 class UpdateBatchCampaignRequest(APIBaseModel):
     campaign_id: uuid.UUID | None = None
+
+
+class VicidialRunRequest(APIBaseModel):
+    """Start or stop the dialer run for one imported lead list.
+
+    Turning the run ON pushes the batch's leads into the VICIdial hopper and
+    increments the run count.  Turning it OFF only changes TalkFlow state: the
+    non-agent API exposes no list/hopper pause, so the dialer may still be
+    working through records already in the hopper.
+    """
+
+    is_active: bool
+    vicidial_list_id: str | None = None
+    campaign_id: uuid.UUID | None = None
+
+
+class VicidialRunResultDTO(APIBaseModel):
+    """Outcome of a run toggle, including the hopper ingest tally."""
+
+    batch_id: uuid.UUID
+    vicidial_list_id: str | None = None
+    vicidial_run_count: int = 0
+    vicidial_status: VicidialRunStatus = VicidialRunStatus.IDLE
+    is_active_for_vicidial: bool = False
+    submitted: int = 0
+    accepted: int = 0
+    rejected: int = 0
+    dialer_lead_ids: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

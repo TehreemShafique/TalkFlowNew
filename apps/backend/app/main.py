@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.database import async_session_factory
 from app.core.logging import configure_logging, get_logger
+from app.core.tls import TLSEnforcementMiddleware, validate_transport_security
 from app.core.tracing import TraceContextMiddleware
 from app.modules.analytics.router import router as analytics_router
 from app.modules.auth.router import account_router
@@ -34,6 +35,7 @@ from app.modules.recordings.router import router as recordings_router
 from app.modules.rule_sets.router import router as rule_sets_router
 from app.modules.scripts.router import router as scripts_router
 from app.modules.suppression.router import router as suppression_router
+from app.modules.telephony.vicidial_webhooks import router as telephony_router
 from app.modules.transfers.router import router as transfers_router
 from app.modules.users_rbac.router import router as users_rbac_router
 from app.modules.users_rbac.service import seed_roles, seed_super_admin
@@ -49,7 +51,8 @@ log = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Seed roles + the super-admin account on boot (idempotent)."""
+    """Fail fast on a plaintext transport, then seed roles + super-admin."""
+    validate_transport_security()
     try:
         async with async_session_factory() as db:
             await seed_roles(db)
@@ -69,6 +72,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(TraceContextMiddleware)
+app.add_middleware(TLSEnforcementMiddleware)
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(account_router, prefix=settings.api_v1_prefix)
@@ -83,6 +87,7 @@ app.include_router(leads_router, prefix=settings.api_v1_prefix)
 app.include_router(suppression_router, prefix=settings.api_v1_prefix)
 app.include_router(exports_router, prefix=settings.api_v1_prefix)
 app.include_router(realtime_router, prefix=settings.api_v1_prefix)
+app.include_router(telephony_router, prefix=settings.api_v1_prefix)
 app.include_router(transfers_router, prefix=settings.api_v1_prefix)
 app.include_router(verifier_router, prefix=settings.api_v1_prefix)
 app.include_router(analytics_router, prefix=settings.api_v1_prefix)
@@ -94,7 +99,14 @@ app.include_router(ops_router, prefix=settings.api_v1_prefix)
 async def talkflow_error_handler(request: Request, exc: TalkFlowError) -> JSONResponse:
     trace_id = getattr(request.state, "trace_id", "") or uuid.uuid4().hex
     log.warning(
-        "domain error", code=exc.code, status=exc.http_status, path=request.url.path
+        "domain error",
+        code=exc.code,
+        # Several branches share a code (e.g. every ``require_auth`` rejection is
+        # ``auth.not_authenticated``); the message is what distinguishes them.
+        message=exc.message,
+        status=exc.http_status,
+        path=request.url.path,
+        trace_id=trace_id,
     )
     return JSONResponse(
         status_code=exc.http_status,

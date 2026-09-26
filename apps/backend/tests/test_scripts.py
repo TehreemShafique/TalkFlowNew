@@ -3,6 +3,7 @@
 Covers:
 - Pure state machine transition rules (can_transition)
 - Pure node graph structural validation
+- B3-3 approved Medicare script bundle validation & Redis bundle compilation
 - Script CRUD HTTP lifecycle (/scripts)
 - Versioning, submit, approve, reject, activate workflow
 - Version diffing engine
@@ -13,7 +14,45 @@ Covers:
 
 from __future__ import annotations
 
-from app.modules.scripts.policies import can_transition, validate_node_graph
+import json
+from pathlib import Path
+
+import pytest
+
+from app.modules.compliance.policies import compile_script_bundle
+from app.modules.compliance.service import publish_bundle_to_redis
+from app.modules.scripts.policies import (
+    can_transition,
+    validate_graph,
+    validate_node_graph,
+)
+
+GRAPH_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "graph"
+APPROVED_MEDICARE_GRAPH = json.loads(
+    (GRAPH_FIXTURES_DIR / "approved_medicare.json").read_text(encoding="utf-8")
+)
+
+
+class StrictComplianceProfile:
+    def rule(self, name: str) -> str:
+        if name == "tpmo_disclaimer_precedes_benefits":
+            return "enforce"
+        return "off"
+
+
+STRICT = StrictComplianceProfile()
+
+
+class MemoryRedis:
+    def __init__(self):
+        self._store: dict[str, bytes] = {}
+
+    async def set(self, key: str, value: str):
+        self._store[key] = value.encode() if isinstance(value, str) else value
+
+    async def get(self, key: str):
+        return self._store.get(key)
+
 
 # ---------------------------------------------------------------------------
 # 1. Pure State Machine & Policies Tests
@@ -73,6 +112,118 @@ def test_node_graph_validation_invalid_entry_and_target():
     assert len(problems) >= 2
     assert any("non-existent-entry" in p for p in problems)
     assert any("missing-node" in p for p in problems)
+
+
+# ---------------------------------------------------------------------------
+# B3-3. Approved Medicare Script Bundle Validation & Redis Compilation
+# ---------------------------------------------------------------------------
+
+
+def load_approved_medicare_graph() -> tuple[str, list[dict]]:
+    entry = APPROVED_MEDICARE_GRAPH["entryNodeId"]
+    nodes = APPROVED_MEDICARE_GRAPH["nodes"]
+    return entry, nodes
+
+
+def test_approved_medicare_bundle_passes_strict_validation():
+    """Authored budget must be structurally valid and compliance-clean under strict profile."""
+    entry, nodes = load_approved_medicare_graph()
+    problems = validate_graph(nodes, entry, profile=STRICT)
+    assert problems == []
+
+
+def test_approved_medicare_bundle_structural_rules():
+    """Entry exists, every transition target resolves, all nodes reachable, terminals declared."""
+    entry, nodes = load_approved_medicare_graph()
+    node_ids = {n["id"] for n in nodes}
+    assert entry == "n_greeting"
+    assert entry in node_ids
+
+    for node in nodes:
+        assert node["id"] in node_ids
+        for trans in node.get("transitions", []):
+            if "nextNodeId" in trans:
+                assert trans["nextNodeId"] in node_ids
+
+    problems = validate_graph(nodes, entry)
+    assert problems == []
+
+
+def test_approved_medicare_bundle_disclaimer_precedes_benefits():
+    """tpmo_disclaimer must appear before every discussesBenefits node on all paths."""
+    entry, nodes = load_approved_medicare_graph()
+    problems = validate_graph(nodes, entry, profile=STRICT)
+    assert not any(e.code == "BENEFITS_BEFORE_DISCLAIMER" for e in problems)
+
+    disclaimer_index = nodes.index(
+        next(n for n in nodes if n.get("complianceRole") == "tpmo_disclaimer")
+    )
+    benefits_indices = [
+        i for i, n in enumerate(nodes) if n.get("discussesBenefits") is True
+    ]
+    assert benefits_indices
+    for benefit_idx in benefits_indices:
+        assert disclaimer_index < benefit_idx
+
+
+def test_approved_medicare_bundle_benefits_before_disclaimer_fails():
+    """A path that reaches a benefits node without passing the disclaimer must trip the rule."""
+    entry, nodes = load_approved_medicare_graph()
+    nodes = [dict(n) for n in nodes]
+    # Redirect the greeting straight to the first benefit-discussing question,
+    # bypassing the tpmo_disclaimer node entirely.
+    greeting = next(n for n in nodes if n["id"] == "n_greeting")
+    benefits = [n for n in nodes if n.get("discussesBenefits") is True]
+    greeting["transitions"] = [{"when": "always", "nextNodeId": benefits[0]["id"]}]
+
+    problems = validate_graph(nodes, entry, profile=STRICT)
+    assert any(e.code == "BENEFITS_BEFORE_DISCLAIMER" for e in problems)
+
+
+def test_approved_medicare_bundle_activation_path():
+    """draft -> pending_approval -> approved -> active is a legal lifecycle for the bundle."""
+    assert can_transition("draft", "pending_approval")
+    assert can_transition("pending_approval", "approved")
+    assert can_transition("approved", "active")
+    assert not can_transition("draft", "active")
+
+
+@pytest.mark.asyncio
+async def test_approved_medicare_bundle_compiles_to_redis():
+    """Full bundle compilation mirrors STEP 25: version activates, bundle is published."""
+    redis = MemoryRedis()
+    entry, nodes = load_approved_medicare_graph()
+    campaign_id = "camp-001"
+    version_id = "ver-001"
+    script_id = "script-001"
+
+    bundle = compile_script_bundle(
+        {
+            "id": version_id,
+            "script_id": script_id,
+            "version": 1,
+            "entry_node_id": entry,
+            "nodes": nodes,
+        }
+    )
+    assert bundle["entryNodeId"] == "n_greeting"
+    assert {n["id"] for n in bundle["nodes"]} == {n["id"] for n in nodes}
+    assert (
+        bundle["complianceProfile"]["rules"]["tpmo_disclaimer_precedes_benefits"]
+        == "enforce"
+    )
+
+    await publish_bundle_to_redis(redis, campaign_id, version_id, bundle)
+
+    ptr = await redis.get(f"cp:campaign:{campaign_id}:active_script")
+    assert ptr is not None
+    assert ptr.decode() == version_id
+
+    raw_bundle = await redis.get(f"cp:script:bundle:{version_id}")
+    assert raw_bundle is not None
+    published = json.loads(raw_bundle.decode())
+    assert published["entryNodeId"] == entry
+    assert len(published["nodes"]) == 6
 
 
 # ---------------------------------------------------------------------------

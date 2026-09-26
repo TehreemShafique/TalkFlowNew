@@ -27,6 +27,8 @@ class LeadEventType(StrEnum):
     IMPORT_UPLOADED = "lead.import.uploaded"
     IMPORT_MAPPING_SAVED = "lead.import.mapping_saved"
     IMPORT_COMMITTED = "lead.import.committed"
+    VICIDIAL_RUN_STARTED = "lead.vicidial.run_started"
+    VICIDIAL_RUN_STOPPED = "lead.vicidial.run_stopped"
 
 
 async def publish_lead_event(

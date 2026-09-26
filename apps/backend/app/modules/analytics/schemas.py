@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import uuid
 import datetime as dt
-from datetime import datetime
+import uuid
+
 from pydantic import Field
 
 from app.packages.contracts.base import APIBaseModel
@@ -31,7 +31,7 @@ class AnalyticsSummaryDTO(APIBaseModel):
 
 
 class CampaignAggDTO(APIBaseModel):
-    date: date
+    date: dt.date
     campaign_id: uuid.UUID
     campaign_name: str | None = None
     total_calls: int
@@ -48,7 +48,7 @@ class CampaignAggDTO(APIBaseModel):
 
 
 class ScriptVersionAggDTO(APIBaseModel):
-    date: date
+    date: dt.date
     script_version_id: uuid.UUID
     script_name: str | None = None
     version: str | None = None
@@ -63,7 +63,7 @@ class ScriptVersionAggDTO(APIBaseModel):
 
 
 class SourceAggDTO(APIBaseModel):
-    date: date
+    date: dt.date
     source: str
     vendor_name: str | None = None
     total_calls: int
@@ -78,7 +78,7 @@ class SourceAggDTO(APIBaseModel):
 
 
 class BotAggDTO(APIBaseModel):
-    date: date
+    date: dt.date
     agent_alias: str
     total_calls: int
     answered: int
@@ -94,10 +94,21 @@ class BotAggDTO(APIBaseModel):
 
 
 class ComplianceAggDTO(APIBaseModel):
-    date: date
+    date: dt.date
     campaign_id: uuid.UUID
     total_calls: int
     disclaimers_read: int
     opt_outs: int
     violations: int
     compliance_rate: str
+
+
+class PerformanceAggDTO(APIBaseModel):
+    """Latency telemetry for one day x LLM provider (see docs/metrics.md)."""
+
+    date: dt.date
+    provider: str
+    samples: int
+    p50_turn_ms: float
+    p95_turn_ms: float
+    p99_turn_ms: float

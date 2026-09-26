@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-import pytest
 
 from app.packages.contracts.enums import RecordingStatus
 from app.packages.db.models import CallRecording
-from workers.retention_purger import run_retention_purger
 
 
 def test_purger_retention_status_values():

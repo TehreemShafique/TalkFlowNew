@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import uuid
 import datetime as dt
+import uuid
 from datetime import datetime
+
 from pydantic import Field
 
 from app.packages.contracts.base import APIBaseModel
@@ -38,7 +39,7 @@ class QAScorecardDTO(APIBaseModel):
     name: str
     version: str
     is_active: bool
-    criteria: list[QACriterionDTO] = []
+    criteria: list[QACriterionDTO] = Field(default_factory=list)
     created_at: datetime
 
 

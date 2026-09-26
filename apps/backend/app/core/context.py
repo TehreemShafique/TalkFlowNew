@@ -58,6 +58,10 @@ class UserContext:
     permissions: set[str]
     issued_at: datetime | None = None
     scope: AccessScope = field(default_factory=AccessScope)
+    # Session JWT id (``user_sessions.token_id``).  Carried so a handler that
+    # must re-issue the token can reuse the same jti and keep resolving to the
+    # same ledger row instead of orphaning it.
+    session_token_id: str | None = None
 
     @classmethod
     def from_principal(
@@ -68,6 +72,7 @@ class UserContext:
         permissions: set[str],
         tenant_id: str | None = None,
         issued_at: datetime | None = None,
+        session_token_id: str | None = None,
     ) -> UserContext:
         """Scope + context derived from a freshly resolved DB principal."""
         now = datetime.now(UTC)
@@ -85,4 +90,5 @@ class UserContext:
             permissions=permissions,
             issued_at=issued_at or now,
             scope=scope,
+            session_token_id=session_token_id,
         )

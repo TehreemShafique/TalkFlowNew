@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+
 from app.core.context import UserContext
 
 
@@ -36,7 +37,7 @@ def calculate_qa_score(criteria: list[CriterionInput]) -> tuple[float, bool, boo
             auto_failed = True
 
         total_weight += c.weight
-        weighted_sum += (c.score_value * c.weight)
+        weighted_sum += c.score_value * c.weight
 
     if auto_failed:
         return 0.0, False, True
@@ -55,6 +56,4 @@ def can_review_call(
     user_id_str = str(user.user_id)
     if call_verifier_id and str(call_verifier_id) == user_id_str:
         return False
-    if call_agent_id and str(call_agent_id) == user_id_str:
-        return False
-    return True
+    return not (call_agent_id and str(call_agent_id) == user_id_str)
